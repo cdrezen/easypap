@@ -349,19 +349,31 @@ int ssandPile_do_tile_opt(int x, int y, int width, int height)
   int diff = 0;
 
   for (int i = y; i < y + height; i++)
+  {
+    TYPE* restrict cell_in = table_cell(TABLE, in, i, x);
+    TYPE* restrict cell_out = table_cell(TABLE, out, i, x);
+
     for (int j = x; j < x + width; j++)
     {
-      TYPE* restrict cell = table_cell(TABLE, out, i, j);
+      //table(out, i, j) = table(in, i, j) % 4;
+      *cell_out = *cell_in % 4;
+      //table(out, i, j) += table(in, i, j + 1) / 4;
+      //table(out, i, j) += table(in, i, j - 1) / 4;
+      *cell_out += *(cell_in + 1) / 4;
+      *cell_out += *(cell_in - 1) / 4;
+      
+      //*cell_out += table(in, i + 1, j) / 4;
+      //*cell_out += table(in, i - 1, j) / 4;
+      *cell_out += *(cell_in + DIM) / 4;
+      *cell_out += *(cell_in - DIM) / 4;
 
-      *cell = table(in, i, j) % 4;
-      *cell += table(in, i + 1, j) / 4;
-      *cell += table(in, i - 1, j) / 4;
-      *cell += table(in, i, j + 1) / 4;
-      *cell += table(in, i, j - 1) / 4;
-      if (*cell >= 4)
+      if (*cell_out >= 4)
         diff = 1;
-    }
 
+      cell_in++;
+      cell_out++;
+    }
+  }
   return diff;
 }
 
