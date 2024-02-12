@@ -1,0 +1,166 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{minted}
+
+\title{pap 01}
+\author{corentin drezen}
+\date{February 2024}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\section{IPL Optimization}
+
+Pour optimiser le calcul des tuiles on s'est d'abord interessé aux macros et fonctions inline suivantes:
+
+\begin{minted}{C}
+typedef unsigned int TYPE;
+
+static TYPE *TABLE = NULL;
+
+static inline TYPE *atable_cell(TYPE *restrict i, int y, int x)
+{
+  return i + y * DIM + x;
+}
+
+#define atable(y, x) (*atable_cell(TABLE, (y), (x)))
+
+static inline TYPE *table_cell(TYPE *restrict i, int step, int y, int x)
+{
+  return DIM * DIM * step + i + y * DIM + x;
+}
+
+#define table(step, y, x) (*table_cell(TABLE, (step), (y), (x)))
+\end{minted}
+
+On peut voir que des pointeurs de cellule peuvent être calculés à chaque fois lorsque l'on utilise les macros \textbf{\textit{atable}} et \textbf{\textit{table}} et que les fonctions \textbf{\textit{\_do\_tile\_default}} les utilisent à de multiples reprises avec plus ou moins les mêmes arguments.
+
+\begin{minted}[escapeinside=€€]{C}
+int asandPile_do_tile_default(int x, int y, int width, int height)
+{
+  int change = 0;
+
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++)
+      if (€\colorbox{pink}{atable(i, j)}€ >= 4)
+      {
+        atable(i, j - 1) += €\colorbox{pink}{atable(i, j)}€ / 4;
+        atable(i, j + 1) += €\colorbox{pink}{atable(i, j)}€ / 4;
+        atable(i - 1, j) += €\colorbox{pink}{atable(i, j)}€ / 4;
+        atable(i + 1, j) += €\colorbox{pink}{atable(i, j)}€ / 4;
+        €\colorbox{pink}{atable(i, j)}€ %= 4;
+        change = 1;
+      }
+  return change;
+}
+\end{minted}
+
+Ainsi dans la fonction ci dessus on a commencé par définir un pointeur vers la cellule redondante à l'aide de la fonction inline \textbf{\textit{atable\_cell}}
+\par On a aussi rajouté une variable pour évité de recalculer la même division par 4 plusieurs fois mais ça ne semblait pas améliorer le temps d'execution en premier lieu, car on avait oublié le mot clé 'const' et le compilateur effectuait sans doute déjà cette optimisation.
+
+\begin{minted}[escapeinside=€€]{C}
+int asandPile_do_tile_opt_old(int x, int y, int width, int height)
+{
+  int change = 0;
+
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++)
+    {
+      €\colorbox{green}{TYPE *cell = atable\_cell(TABLE, i, j);}€
+
+      if (€\colorbox{green}{*cell}€ >= 4)
+      {
+        €\colorbox{lime}{const TYPE cell\_quarter = *cell / 4}€;
+
+        atable(i, j - 1) += €\colorbox{lime}{cell\_quarter}€;
+        atable(i, j + 1) += €\colorbox{lime}{cell\_quarter}€;
+        atable(i - 1, j) += €\colorbox{lime}{cell\_quarter}€;
+        atable(i + 1, j) += €\colorbox{lime}{cell\_quarter}€;
+        €\colorbox{green}{*cell}€ %= 4;
+        change = 1;
+      }
+    }
+  return change;
+}
+\end{minted}
+
+Avec le code ci dessus (sans parallelisation) sur une machine de la salle 008 un dimanche on obtient $\pm 31100 ms$ et $\pm 38400 ms$ avec la version par défault asynchrone, soit à peu près 7 secondes de différence.
+
+\par Ensuite on a voulu calculer plus rapidement les autres adresses '\textit{atable}' et on a déplacé la déclaration du pointer '\textit{cell}' dans la boucle superieur pour l'incrementer 'manuellement' afin de ne pas recalculer totalement l'adresse à chaque sous iteration.
+\par On a aussi pu rajouté le mot clé \textit{\textbf{restrict}} à notre pointeur '\textit{cell}' qui permet d'informer le compilateur qu'il n'y aura pas d'autres pointeur vers cette objet pendant sa durée de vie. Cela permettrais au compilateur de faire des optimisations en vectorisant.
+
+\begin{minted}[escapeinside=€€]{C}
+
+int asandPile_do_tile_opt(int x, int y, int width, int height)
+{
+  int change = 0;
+
+  for (int i = y; i < y + height; i++)
+  {
+    TYPE *restrict cell = atable_cell(TABLE, i, x);
+
+    for (int j = x; j < x + width; j++)
+    {
+      if (*cell >= 4)
+      {
+        const TYPE cell_quarter = *cell / 4;
+
+        *(cell - 1) += cell_quarter;
+        *(cell + 1) += cell_quarter;
+        *(cell - DIM) += cell_quarter;
+        *(cell + DIM) += cell_quarter;
+        *cell %= 4;
+        change = 1;
+      }
+      cell++;
+    }
+  }
+  return change;
+}
+\end{minted}
+
+Avec le code ci dessus dans les même conditions que précedement on a obtenu $\pm 21200 ms$ soit à peu près $16s$ de moins que la version asynchrone de base.
+\par On a pensé à encore remonter le calcul de l'adresse en dehors de l'iteration mais on a pas réussi à incrementer l'adresse correctement on est pas certain de l'efficacité de ceci.
+\ \\
+\par On a utilisé le même raisonement pour l'optimisation de la version synchrone ci dessous. On obtient environ $42s$ de différence avec la version par défault, $\pm 140000 ms$ au lieu de $\pm 183000 ms$. Cela reste assez long sans parallelisation.
+
+\begin{minted}[escapeinside=€€]{C}
+int ssandPile_do_tile_opt(int x, int y, int width, int height)
+{
+  int diff = 0;
+
+  for (int i = y; i < y + height; i++)
+  {
+    TYPE *restrict cell_in = table_cell(TABLE, in, i, x);
+    TYPE *restrict cell_out = table_cell(TABLE, out, i, x);
+
+    for (int j = x; j < x + width; j++)
+    {
+      // table(out, i, j) = table(in, i, j) % 4;
+      *cell_out = *cell_in % 4;
+      // table(out, i, j) += table(in, i, j + 1) / 4;
+      // table(out, i, j) += table(in, i, j - 1) / 4;
+      *cell_out += *(cell_in + 1) / 4;
+      *cell_out += *(cell_in - 1) / 4;
+
+      //*cell_out += table(in, i + 1, j) / 4;
+      //*cell_out += table(in, i - 1, j) / 4;
+      *cell_out += *(cell_in + DIM) / 4;
+      *cell_out += *(cell_in - DIM) / 4;
+
+      if (*cell_out >= 4)
+        diff = 1;
+
+      cell_in++;
+      cell_out++;
+    }
+  }
+  return diff;
+}
+\end{minted}
+
+\end{document}
+

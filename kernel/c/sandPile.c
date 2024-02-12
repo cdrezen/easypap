@@ -66,11 +66,11 @@ void asandPile_refresh_img()
 
 /////////////////////////////  Initial Configurations
 
-static inline void set_cell (int y, int x, unsigned v)
+static inline void set_cell(int y, int x, unsigned v)
 {
-  atable (y, x) = v;
+  atable(y, x) = v;
   if (gpu_used)
-    cur_img (y, x) = v;
+    cur_img(y, x) = v;
 }
 
 void asandPile_draw_4partout(void);
@@ -100,7 +100,7 @@ void asandPile_draw_DIM(void)
   max_grains = DIM;
   for (int i = DIM / 4; i < DIM - 1; i += DIM / 4)
     for (int j = DIM / 4; j < DIM - 1; j += DIM / 4)
-      set_cell (i, j, i * j / 4);
+      set_cell(i, j, i * j / 4);
 }
 
 void asandPile_draw_alea(void)
@@ -108,14 +108,14 @@ void asandPile_draw_alea(void)
   max_grains = 5000;
   for (int i = 0; i < DIM >> 3; i++)
   {
-    set_cell (1 + random() % (DIM - 2), 1 + random() % (DIM - 2), 1000 + (random() % (4000)));
+    set_cell(1 + random() % (DIM - 2), 1 + random() % (DIM - 2), 1000 + (random() % (4000)));
   }
 }
 
 void asandPile_draw_big(void)
 {
   const int i = DIM / 2;
-  set_cell (i, i, 100000);
+  set_cell(i, i, 100000);
 }
 
 static void one_spiral(int x, int y, int step, int turns)
@@ -125,19 +125,19 @@ static void one_spiral(int x, int y, int step, int turns)
   for (t = 1; t <= turns; t++)
   {
     for (; i < x + t * step; i++)
-      set_cell (i, j, 3);
+      set_cell(i, j, 3);
     for (; j < y + t * step + 1; j++)
       set_cell(i, j, 3);
     for (; i > x - t * step - 1; i--)
-      set_cell (i, j, 3);
+      set_cell(i, j, 3);
     for (; j > y - t * step - 1; j--)
-      set_cell (i, j, 3);
+      set_cell(i, j, 3);
   }
-  set_cell (i, j, 4);
+  set_cell(i, j, 4);
 
   for (int i = -2; i < 3; i++)
     for (int j = -2; j < 3; j++)
-      set_cell (i + x, j + y, 3);
+      set_cell(i + x, j + y, 3);
 }
 
 static void many_spirals(int xdebut, int xfin, int ydebut, int yfin, int step,
@@ -247,16 +247,16 @@ unsigned ssandPile_compute_tiled(unsigned nb_iter)
 #ifdef ENABLE_OPENCL
 
 // Only called when --dump or --thumbnails is used
-void ssandPile_refresh_img_ocl ()
+void ssandPile_refresh_img_ocl()
 {
   cl_int err;
 
   err =
-      clEnqueueReadBuffer (queue, cur_buffer, CL_TRUE, 0,
-                           sizeof (unsigned) * DIM * DIM, TABLE, 0, NULL, NULL);
-  check (err, "Failed to read buffer from GPU");
+      clEnqueueReadBuffer(queue, cur_buffer, CL_TRUE, 0,
+                          sizeof(unsigned) * DIM * DIM, TABLE, 0, NULL, NULL);
+  check(err, "Failed to read buffer from GPU");
 
-  ssandPile_refresh_img ();
+  ssandPile_refresh_img();
 }
 
 #endif
@@ -350,18 +350,18 @@ int ssandPile_do_tile_opt(int x, int y, int width, int height)
 
   for (int i = y; i < y + height; i++)
   {
-    TYPE* restrict cell_in = table_cell(TABLE, in, i, x);
-    TYPE* restrict cell_out = table_cell(TABLE, out, i, x);
+    TYPE *restrict cell_in = table_cell(TABLE, in, i, x);
+    TYPE *restrict cell_out = table_cell(TABLE, out, i, x);
 
     for (int j = x; j < x + width; j++)
     {
-      //table(out, i, j) = table(in, i, j) % 4;
+      // table(out, i, j) = table(in, i, j) % 4;
       *cell_out = *cell_in % 4;
-      //table(out, i, j) += table(in, i, j + 1) / 4;
-      //table(out, i, j) += table(in, i, j - 1) / 4;
+      // table(out, i, j) += table(in, i, j + 1) / 4;
+      // table(out, i, j) += table(in, i, j - 1) / 4;
       *cell_out += *(cell_in + 1) / 4;
       *cell_out += *(cell_in - 1) / 4;
-      
+
       //*cell_out += table(in, i + 1, j) / 4;
       //*cell_out += table(in, i - 1, j) / 4;
       *cell_out += *(cell_in + DIM) / 4;
@@ -383,28 +383,53 @@ int asandPile_do_tile_opt(int x, int y, int width, int height)
 
   for (int i = y; i < y + height; i++)
   {
-    TYPE* restrict cell = atable_cell(TABLE, i, x);
+    TYPE *restrict cell = atable_cell(TABLE, i, x);
 
     for (int j = x; j < x + width; j++)
     {
       if (*cell >= 4)
       {
-        TYPE cell_quarter = *cell / 4; //moins bien que '*cell / 4'?
+        const TYPE cell_quarter = *cell / 4; // moins bien que '*cell / 4'?
 
-        //atable(i, j - 1) += atable(i, j) / 4;
-        //atable(i, j + 1) += atable(i, j) / 4;
-        *(cell-1) += cell_quarter;
-        *(cell+1) += cell_quarter;
-        //atable(i - 1, j) += atable(i, j) / 4;
-        //atable(i + 1, j) += atable(i, j) / 4;
-        *(cell-DIM) += cell_quarter;
-        *(cell+DIM) += cell_quarter;
+        // atable(i, j - 1) += atable(i, j) / 4;
+        // atable(i, j + 1) += atable(i, j) / 4;
+        *(cell - 1) += cell_quarter;
+        *(cell + 1) += cell_quarter;
+        // atable(i - 1, j) += atable(i, j) / 4;
+        // atable(i + 1, j) += atable(i, j) / 4;
+        *(cell - DIM) += cell_quarter;
+        *(cell + DIM) += cell_quarter;
         *cell %= 4;
         change = 1;
       }
       cell++;
     }
+    // cell+=DIM;
   }
+  return change;
+}
+
+int asandPile_do_tile_opt_old(int x, int y, int width, int height)
+{
+  int change = 0;
+
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++)
+    {
+      TYPE *cell = atable_cell(TABLE, i, j);
+
+      if (*cell >= 4)
+      {
+        const TYPE cell_quarter = *cell / 4;
+
+        atable(i, j - 1) += cell_quarter;
+        atable(i, j + 1) += cell_quarter;
+        atable(i - 1, j) += cell_quarter;
+        atable(i + 1, j) += cell_quarter;
+        *cell %= 4;
+        change = 1;
+      }
+    }
   return change;
 }
 
