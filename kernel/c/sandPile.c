@@ -7,7 +7,8 @@
 
 typedef unsigned int TYPE;
 
-static TYPE *TABLE = NULL;
+static TYPE* restrict TABLE = NULL;
+//static TYPE* TABLE = NULL;
 
 static inline TYPE *atable_cell(TYPE *restrict i, int y, int x)
 {
@@ -348,36 +349,69 @@ int ssandPile_do_tile_opt(int x, int y, int width, int height)
 {
   int diff = 0;
 
+  TYPE *restrict cell_in = table_cell(TABLE, in, y, x);
+  TYPE *restrict cell_out = table_cell(TABLE, out, y, x);
+
   for (int i = y; i < y + height; i++)
   {
-    TYPE *restrict cell_in = table_cell(TABLE, in, i, x);
-    TYPE *restrict cell_out = table_cell(TABLE, out, i, x);
-
     for (int j = x; j < x + width; j++)
     {
       // table(out, i, j) = table(in, i, j) % 4;
-      *cell_out = *cell_in % 4;
-      // table(out, i, j) += table(in, i, j + 1) / 4;
-      // table(out, i, j) += table(in, i, j - 1) / 4;
-      *cell_out += *(cell_in + 1) / 4;
-      *cell_out += *(cell_in - 1) / 4;
+      *cell_out = *cell_in & 3;
 
-      //*cell_out += table(in, i + 1, j) / 4;
-      //*cell_out += table(in, i - 1, j) / 4;
-      *cell_out += *(cell_in + DIM) / 4;
-      *cell_out += *(cell_in - DIM) / 4;
+      //+= table(in, i, j + 1) / 4; 
+      *cell_out += *(cell_in + 1) >> 2;
+      *cell_out += *(cell_in - 1) >> 2;
+
+      //+= table(in, i + 1, j) / 4;
+      *cell_out += *(cell_in + DIM) >> 2;
+      *cell_out += *(cell_in - DIM) >> 2;
 
       if (*cell_out >= 4)
-        diff = 1;
+        diff = 1;      
 
       cell_in++;
       cell_out++;
     }
+    cell_in += 2;
+    cell_out += 2;
   }
   return diff;
 }
 
 int asandPile_do_tile_opt(int x, int y, int width, int height)
+{
+  int change = 0;
+
+  //TYPE *cell = atable_cell(TABLE, y, x);
+  TYPE *restrict cell = atable_cell(TABLE, y, x);
+
+  for (int i = y; i < y + height; i++)
+  {
+    for (int j = x; j < x + width; j++)
+    {
+      if (*cell >= 4)
+      {
+        const TYPE cell_quarter = *cell >> 2;
+
+        // atable(i, j - 1) et atable(i, j + 1) :
+        *(cell - 1) += cell_quarter;
+        *(cell + 1) += cell_quarter;
+        // atable(i - 1, j) et atable(i + 1, j) :
+        *(cell - DIM) += cell_quarter;
+        *(cell + DIM) += cell_quarter;
+        *cell &= 3;
+
+        change = 1;
+      }
+      cell++;
+    }
+    cell += 2;//2.
+  }
+  return change;
+}
+
+int asandPile_do_tile_opt_old1(int x, int y, int width, int height)
 {
   int change = 0;
 
@@ -389,14 +423,10 @@ int asandPile_do_tile_opt(int x, int y, int width, int height)
     {
       if (*cell >= 4)
       {
-        const TYPE cell_quarter = *cell / 4; // moins bien que '*cell / 4'?
+        const TYPE cell_quarter = *cell / 4;
 
-        // atable(i, j - 1) += atable(i, j) / 4;
-        // atable(i, j + 1) += atable(i, j) / 4;
         *(cell - 1) += cell_quarter;
         *(cell + 1) += cell_quarter;
-        // atable(i - 1, j) += atable(i, j) / 4;
-        // atable(i + 1, j) += atable(i, j) / 4;
         *(cell - DIM) += cell_quarter;
         *(cell + DIM) += cell_quarter;
         *cell %= 4;
@@ -404,7 +434,6 @@ int asandPile_do_tile_opt(int x, int y, int width, int height)
       }
       cell++;
     }
-    // cell+=DIM;
   }
   return change;
 }
@@ -431,6 +460,60 @@ int asandPile_do_tile_opt_old(int x, int y, int width, int height)
       }
     }
   return change;
+}
+
+#pragma endregion
+
+#pragma region 4.2 //
+
+int ssandPile_do_tile_opt_omp(int x, int y, int width, int height)
+{
+  int diff = 0;
+
+  //#pragma omp for collapse(2)
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++)
+    {
+      TYPE *restrict cell_in = table_cell(TABLE, in, i, j);
+      TYPE *restrict cell_out = table_cell(TABLE, out, i, j);
+
+      *cell_out = *cell_in & 3;
+      *cell_out += *(cell_in + 1) >> 2;
+      *cell_out += *(cell_in - 1) >> 2;
+      *cell_out += *(cell_in + DIM) >> 2;
+      *cell_out += *(cell_in - DIM) >> 2;
+
+      if (*cell_out >= 4)
+        diff = 1;      
+    }  
+
+  return diff;
+}
+
+unsigned ssandPile_compute_omp(unsigned nb_iter)
+{
+  #pragma omp schedule(runtime)
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    int change = 0;
+
+    #pragma omp parallel shared(change)
+    {
+      change = do_tile(1, 1, DIM - 2, DIM - 2);// On traite toute l'image en un coup
+      if (change == 0)
+      {
+        #pragma omp barrier
+      }
+    }
+
+    if (change == 0)
+      {
+        return it;
+      }
+
+    swap_tables();
+  }
+  return 0;
 }
 
 #pragma endregion
