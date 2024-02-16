@@ -342,6 +342,78 @@ unsigned asandPile_compute_tiled(unsigned nb_iter)
   return 0;
 }
 
+
+
+#pragma region 4.1 // ILP optimization
+
+int ssandPile_do_tile_opt(int x, int y, int width, int height)
+{
+  int diff = 0;
+
+  TYPE *restrict cell_in = table_cell(TABLE, in, y, x);
+  TYPE *restrict cell_out = table_cell(TABLE, out, y, x);
+
+  for (int i = y; i < y + height; i++)
+  {
+    for (int j = x; j < x + width; j++)
+    {
+      // table(out, i, j) = table(in, i, j) % 4;
+      *cell_out = *cell_in & 3;
+
+      //+= table(in, i, j + 1) / 4; 
+      *cell_out += *(cell_in + 1) >> 2;
+      *cell_out += *(cell_in - 1) >> 2;
+
+      //+= table(in, i + 1, j) / 4;
+      *cell_out += *(cell_in + DIM) >> 2;
+      *cell_out += *(cell_in - DIM) >> 2;
+
+      if (*cell_out >= 4)
+        diff = 1;      
+
+      cell_in++;
+      cell_out++;
+    }
+    cell_in += 2;
+    cell_out += 2;
+  }
+  return diff;
+}
+
+int asandPile_do_tile_opt(int x, int y, int width, int height)
+{
+  int change = 0;
+
+  //TYPE *cell = atable_cell(TABLE, y, x);
+  TYPE *restrict cell = atable_cell(TABLE, y, x);
+
+  for (int i = y; i < y + height; i++)
+  {
+    for (int j = x; j < x + width; j++)
+    {
+      if (*cell >= 4)
+      {
+        const TYPE cell_quarter = *cell >> 2;
+
+        // atable(i, j - 1) et atable(i, j + 1) :
+        *(cell - 1) += cell_quarter;
+        *(cell + 1) += cell_quarter;
+        // atable(i - 1, j) et atable(i + 1, j) :
+        *(cell - DIM) += cell_quarter;
+        *(cell + DIM) += cell_quarter;
+        *cell &= 3;
+
+        change = 1;
+      }
+      cell++;
+    }
+    cell += 2;//2.
+  }
+  return change;
+}
+
+
+
 int ssandPile_do_tile_optomp(int x, int y, int width, int height)
 {
   int diff = 0;
