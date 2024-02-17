@@ -1,0 +1,62 @@
+#!/bin/bash
+TIMEOUT=15
+
+NOCOLOR='\033[0m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+WHITE='\033[1;37m'
+
+echoColor () {
+    echo -e $p : $* $NOCOLOR
+}
+
+refdir="etape-1/evaluation/"
+configPath="etape-1/evaluation/"
+perfFile=../perf.csv
+
+p=projet
+
+#for p in projet-* ; do
+#    echo $p ----------------------------
+#    cd $p
+    make -j
+    for config in ompfor_256 ompfor_1024 ompfor_4096 omptask_1024; do
+
+    cmd=$(cat $configPath$config)
+    case $config in
+	*256*)
+	    arguments=" -s 256 "
+	    size=256
+	;;
+	*1024*)
+	    arguments=" -s 1024 -i 1024 "
+	    size=1024
+	;;
+	*4096*)
+	    arguments=" -s 4096 -i 64 "
+	    size=4096
+	;;
+    esac
+	reference=$refdir/$size.sha256    
+    	export cmdLine="$cmd $arguments -n -a 4partout -sh -of $perfFile --label $p"
+	echo Running : "$cmdLine"
+	timeout $TIMEOUT bash -c "$cmdLine"
+	status=$?
+	[ $status -eq 137 ] &&  echoColor $RED  "run $config : timeout" && continue
+	[ $status -ne 0 ] &&  echoColor $RED "run $config : exit($status)" && continue
+        sha=data/hash/$(ls -rt data/hash/ | tail -1)
+	diff $sha  $reference
+	dstatus=$?
+	if [ $dstatus -ne 0 ] ; then
+	    echoColor $RED "diff $config : exit($status)"
+	    echo "Suppression de la ligne "
+	    tail -1 $perfFile
+	    sed -i '$ d' $perfFile
+	    rm -f $sha
+	    continue
+	fi
+	echoColor $GREEN "OK $config"
+	rm -f $sha
+done
+
+[ -f etape-1/rapport.pdf ] || echoColor $RED "le rapport est absent"

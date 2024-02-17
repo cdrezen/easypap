@@ -419,7 +419,7 @@ int asandPile_do_tile_opt(int x, int y, int width, int height)
 
 #pragma endregion
 
-#pragma region 4.2 //
+#pragma region 4.2 // OpenMP implementation of the synchronous version
 
 unsigned ssandPile_compute_omp(unsigned nb_iter)
 {
@@ -484,6 +484,57 @@ unsigned ssandPile_compute_omp_tiled(unsigned nb_iter)
   }
 
   return res;
+}
+
+int ssandPile_do_tile_optomp(int x, int y, int width, int height)
+{
+  int diff = 0;
+
+  #pragma omp parallel for schedule(runtime) reduction(|:diff)
+  for (int i = y; i < y + height; i++){
+    for (int j = x; j < x + width; j++)
+    {
+      TYPE *restrict cell_in = table_cell(TABLE, in, i, j);
+      TYPE *restrict cell_out = table_cell(TABLE, out, i, j);
+
+      *cell_out = *cell_in & 3;
+      *cell_out += *(cell_in + 1) >> 2;
+      *cell_out += *(cell_in - 1) >> 2;
+      *cell_out += *(cell_in + DIM) >> 2;
+      *cell_out += *(cell_in - DIM) >> 2;
+
+      if (*cell_out >= 4)
+        diff = 1; 
+      cell_in++;
+      cell_out++;     
+    }  
+  }
+  return diff;
+}
+
+
+int  ssandPile_compute_omptiled(int x, int y, int width, int height) {
+  int diff = 0;
+  #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:diff)
+  for (int i = y; i < y + height; i++){
+    for (int j = x; j < x + width; j++)
+    {
+      TYPE *restrict cell_in = table_cell(TABLE, in, i, j);
+      TYPE *restrict cell_out = table_cell(TABLE, out, i, j);
+
+      *cell_out = *cell_in & 3;
+      *cell_out += *(cell_in + 1) >> 2;
+      *cell_out += *(cell_in - 1) >> 2;
+      *cell_out += *(cell_in + DIM) >> 2;
+      *cell_out += *(cell_in - DIM) >> 2;
+
+      if (*cell_out >= 4)
+        diff = 1; 
+      cell_in++;
+      cell_out++;     
+    }  
+  }
+  return diff;
 }
 
 #pragma endregion
