@@ -1,1 +1,1 @@
-OMP_NUM_THREADS=8 OMP_SCHEDULE=static ./run -k ssandPile -v omp_tiled -wt opt
+OMP_NUM_THREADS=12 OMP_SCHEDULE=static ./run -k ssandPile -v omp_tiled -wt opt -th 1 -tw 256

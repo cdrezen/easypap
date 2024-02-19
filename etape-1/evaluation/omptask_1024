@@ -1,1 +1,1 @@
-OMP_NUM_THREADS=22 OMP_SCHEDULE=static ./run -k ssandPile -v omp_taskloop -wt opt -ts 64
+OMP_NUM_THREADS=12 OMP_SCHEDULE=static ./run -k ssandPile -v omp_taskloop -wt opt -ts 64
