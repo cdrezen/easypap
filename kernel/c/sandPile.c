@@ -591,3 +591,218 @@ unsigned ssandPile_compute_omp_task(unsigned nb_iter)
 }
 
 #pragma endregion
+
+#pragma region 4.3 //OpenMP implementation of the asynchronous version
+
+unsigned asandPile_compute_omp(unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    int change = 0;
+
+    #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM; y += TILE_H)
+      for (int x = 0; x < DIM; x += TILE_W)
+        change |=
+            do_tile(x + (x == 0), y + (y == 0),
+                    TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                    TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+
+    if (change == 0)
+      return it;
+  }
+
+  return 0;
+}
+
+static void touch_tile (int x, int y, int width, int height)
+{
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++)
+      next_img (i, j) = cur_img (j, i) = next_img (j, i) = cur_img (i, j) = 0; //atable_cell =?
+}
+
+//pas fini
+unsigned asandPile_ft (unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++) {
+
+    #pragma omp parallel for collapse(2)
+    for (int y = 0; y < DIM / 2; y += TILE_H)
+      for (int x = 0; x < DIM / 2; x += TILE_W) {
+        
+        {
+          touch_tile (x + (x == 0), y + (y == 0),
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+                          
+          touch_tile (DIM - x - TILE_W, DIM - y - TILE_H,
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+        }
+
+        {
+          touch_tile (DIM - x - TILE_W, y + (y == 0),
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+          
+          touch_tile (x + (x == 0), DIM - y - TILE_H,
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));             
+        }
+      }
+  }
+
+  return 0;
+}
+
+//OMP_NUM_THREADS=12 ./run -k asandPile -s 64 -v omp_cache -wt opt -n -du -ft
+//-s 32 cassé
+unsigned asandPile_compute_omp_cache (unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    int change = 0;
+
+      #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM / 2; y += TILE_H)
+      for (int x = 0; x < DIM / 2; x += TILE_W) {
+        
+        {
+          change |= do_tile (x + (x == 0), y + (y == 0),
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+                          
+          change |= do_tile (DIM - x - TILE_W, DIM - y - TILE_H,
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+        }
+
+        {
+          //change |= do_tile (DIM - y - TILE_H, x, TILE_W, TILE_H);
+          change |= do_tile (DIM - x - TILE_W, y + (y == 0),
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+          
+          //change |= do_tile (x, DIM - y - TILE_H, TILE_W, TILE_H);
+          change |= do_tile (x + (x == 0), DIM - y - TILE_H,
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+                          
+        }
+     
+     /* 
+                          
+        {
+          change |= do_tile(x, y, TILE_W, TILE_H);
+          change |= do_tile (DIM - x - TILE_W, DIM - y - TILE_H, TILE_W, TILE_H);
+        }
+        
+
+        {
+          change |= do_tile (DIM - y - TILE_H, x, TILE_W, TILE_H);
+          change |= do_tile (x, DIM - y - TILE_H, TILE_W, TILE_H);
+        }
+        */
+      }
+
+    if (change == 0)
+      return it;
+  }
+
+  return 0;
+}
+
+unsigned asandPile_compute_omp_cache1(unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    int change = 0, change1 = 0;
+
+      #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM / 2; y += TILE_H)
+      for (int x = 0; x < DIM / 2; x += TILE_W) {
+
+          change |= do_tile (x + (x == 0), y + (y == 0),
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+                          
+          change |= do_tile (DIM - x - TILE_W, DIM - y - TILE_H,
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+      }
+
+      #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change1)
+    for (int y = 0; y < DIM / 2; y += TILE_H)
+      for (int x = 0; x < DIM / 2; x += TILE_W) {
+
+          change1 |= do_tile (DIM - x - TILE_W, y + (y == 0),
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+
+          change1 |= do_tile (x + (x == 0), DIM - y - TILE_H,
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0))); 
+      }                    
+
+    if (change == 0 && change1 == 0)
+      return it;
+  }
+
+  return 0;
+}
+
+unsigned asandPile_compute_omp_cache_task (unsigned nb_iter)
+{
+  int res = 0;
+
+  #pragma omp parallel master
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    int change = 0, tchange = 0;
+
+    for (int y = 0; y < DIM / 2; y += TILE_H)
+      for (int x = 0; x < DIM / 2; x += TILE_W) {
+        
+        #pragma omp task firstprivate(tchange) shared(change)
+        {
+          tchange |= do_tile (x + (x == 0), y + (y == 0),
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+    
+          tchange |= do_tile (DIM - x - TILE_W, DIM - y - TILE_H,
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+          
+          #pragma omp atomic
+          change |= tchange;
+        }
+        
+        #pragma omp task firstprivate(tchange) shared(change)
+        {
+          tchange |= do_tile (DIM - x - TILE_W, y + (y == 0),
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+          
+          tchange |= do_tile (x + (x == 0), DIM - y - TILE_H,
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+
+          #pragma omp atomic
+          change |= tchange;
+        }
+      }
+
+    #pragma omp taskwait
+
+    if (change == 0)
+    {
+      res = it;
+      break;
+    }
+  }
+
+  return res;
+}
+
+#pragma endregion
