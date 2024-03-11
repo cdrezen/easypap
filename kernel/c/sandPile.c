@@ -805,4 +805,90 @@ unsigned asandPile_compute_omp_cache_task (unsigned nb_iter)
   return res;
 }
 
+unsigned asandPile_compute_omp_test_1(unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    int change = 0;
+    int z =0;
+
+      //#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM; y += TILE_H * 2)
+      for (int x = 0; x < DIM; x += TILE_W * 2)
+      {
+        change |=
+            do_tile(x + (x == 0), y + (y == 0),
+                    TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                    TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+      }
+
+    //#pragma omp barrier
+
+/*     #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = TILE_H; y < DIM; y += TILE_H * 2)
+      for (int x = TILE_W; x < DIM; x += TILE_W * 2)
+      {
+        change |=
+            do_tile(x + (x == 0), y + (y == 0),
+                    TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                    TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+      } */
+
+    if (change == 0)
+      return it;
+  }
+
+  return 0;
+}
+
+unsigned asandPile_compute_omp_test_2(unsigned nb_iter)
+{
+  int res = 0;
+
+  #pragma omp parallel master
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    int change = 0;
+    int z =0;
+
+      //#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM; y += TILE_H)
+    {
+        #pragma omp parallel for schedule(runtime) reduction(|:change)
+      for (int x = 0; x < DIM; x += TILE_W)
+      {
+        //#pragma omp taskwait
+        //#pragma omp task shared(change)
+        change |=
+            do_tile(x + (x == 0), y + (y == 0),
+                    TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                    TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+      }
+
+      y+=TILE_H;
+
+      /*   #pragma omp parallel for schedule(runtime) reduction(|:change)
+      for (int x = 0; x < DIM; x += TILE_W * 2)
+      {
+        //#pragma omp task shared(change)
+        change |=
+            do_tile(x + (x == 0), y + (y == 0),
+                    TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                    TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+        //#pragma omp taskwait  
+      } */
+
+      //y-=TILE_H; */
+    }
+
+    if (change == 0)
+    {
+      res = it;
+      break;
+    }
+  }
+
+  return 0;
+}
+
 #pragma endregion
