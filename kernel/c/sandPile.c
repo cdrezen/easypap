@@ -399,7 +399,7 @@ int asandPile_do_tile_opt(int x, int y, int width, int height)
     for (int j = x; j < x + width; j++)
     {
       TYPE *restrict cell = atable_cell(TABLE, i, j);
-
+#pragma omp critical
       if (*cell >= 4)
       {
         const TYPE cell_quarter = *cell >> 2;// /4
@@ -861,6 +861,44 @@ unsigned asandPile_compute_omp_test_3(unsigned nb_iter)
   }
 
   return res;
+}
+
+unsigned asandPile_compute_ompd(unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    int change = 0;
+#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM - TILE_H; y += 2*TILE_H)
+      for (int x = 0; x < DIM - TILE_W; x += 2*TILE_W){
+        change |=
+            do_tile(x + (x == 0), y + (y == 0),
+                    TILE_W,
+                    TILE_H);
+        change |=
+            do_tile(x + TILE_W, y + TILE_H,
+                    TILE_W - (x + TILE_W == DIM),
+                    TILE_H - (y + TILE_H == DIM));
+      }
+
+#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM - TILE_H; y += 2*TILE_H)
+      for (int x = 0; x < DIM; x += 2*TILE_W){
+        change |=
+            do_tile(x + (x == 0), y + TILE_H,
+                    TILE_W,
+                    TILE_H + (y + TILE_H == DIM));
+        change |=
+            do_tile(x + TILE_W, y + (y == 0),
+                    TILE_W - (x + TILE_W == DIM),
+                    TILE_H);
+      }
+
+    if (change == 0)
+      return it;
+  }
+
+  return 0;
 }
 
 #pragma endregion
