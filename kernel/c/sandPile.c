@@ -345,6 +345,7 @@ unsigned asandPile_compute_tiled(unsigned nb_iter)
 
 #pragma region 4.1 // ILP optimization
 
+#pragma GCC optimize ("unroll-loops")
 int ssandPile_do_tile_opt(int x, int y, int width, int height)
 {
   int diff = 0;
@@ -391,6 +392,7 @@ int ssandPile_do_tile_opt1(int x, int y, int width, int height)
   return diff;
 }
 
+#pragma GCC optimize ("unroll-loops")
 int asandPile_do_tile_opt(int x, int y, int width, int height)
 {
   int change = 0;
@@ -792,38 +794,42 @@ unsigned asandPile_compute_ompdd(unsigned nb_iter)
   return res;
 }
 
+// fonction inline pour génerer le code du calcul des cellules voisines qui necessitent une synchronisation si elles sont en bord de tuile
+static inline void asandPile_do_neighbor_cell(TYPE* cell, TYPE val, int ij, int border_pos)
+{
+    if(ij == border_pos)
+    {
+      #pragma omp atomic
+      *cell += val;
+    }
+    else 
+      *cell += val;
+}
+
+#pragma GCC optimize ("unroll-loops")
 int asandPile_do_tile_ooo(int x, int y, int width, int height)
 {
   int change = 0;
+  // const bool sync_top = y > 0;
+  // const bool sync_left = x > 0;
+  // const bool sync_right = x + width < DIM;
+  // const bool sync_bottom = y + height < DIM;
 
   for (int i = y; i < y + height; i++)
-    for (int j = x; j < x + width; j++) {
-      if (i == y || j == x || i == y + height -1 || j == x + width -1)
+    for (int j = x; j < x + width; j++) { 
+      TYPE *restrict cell = atable_cell(TABLE, i, j);
+      if (*cell >= 4)
       {
-        if (atable(i, j) >= 4)
-        {
-          #pragma omp atomic
-          atable(i, j - 1) += atable(i, j) / 4;
-          #pragma omp atomic
-          atable(i, j + 1) += atable(i, j) / 4;
-          #pragma omp atomic
-          atable(i - 1, j) += atable(i, j) / 4;
-          #pragma omp atomic
-          atable(i + 1, j) += atable(i, j) / 4;
-          atable(i, j) %= 4;
-          change = 1;
-        }
-      }
-      else{
-        if (atable(i, j) >= 4)
-        {
-          atable(i, j - 1) += atable(i, j) / 4;
-          atable(i, j + 1) += atable(i, j) / 4;
-          atable(i - 1, j) += atable(i, j) / 4;
-          atable(i + 1, j) += atable(i, j) / 4;
-          atable(i, j) %= 4;
-          change = 1;
-        }
+        const TYPE cell_quarter = *cell >> 2;// /4
+        
+        asandPile_do_neighbor_cell(cell-DIM, cell_quarter, i, y);
+        asandPile_do_neighbor_cell(cell-1, cell_quarter, j, x);
+        asandPile_do_neighbor_cell(cell+1, cell_quarter, j, x + width - 1);
+        asandPile_do_neighbor_cell(cell+DIM, cell_quarter, i, y + height - 1);
+
+        *cell &= 3;
+          
+        change = 1;
       }
     }
   return change;
