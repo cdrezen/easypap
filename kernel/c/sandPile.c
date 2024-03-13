@@ -369,29 +369,6 @@ int ssandPile_do_tile_opt(int x, int y, int width, int height)
   return diff;
 }
 
-int ssandPile_do_tile_opt1(int x, int y, int width, int height)
-{
-  int diff = 0;
-
-  for (int i = y; i < y + height; i++)
-    for (int j = x; j < x + width; j++)
-    {
-      //TYPE *restrict cell_in = table_cell(TABLE, in, i, j);
-      TYPE *restrict cell_out = table_cell(TABLE, out, i, j);
-
-      *cell_out = table(in, i, j) % 4
-                 + (table(in, i, j - 1) / 4) 
-                 + (table(in, i, j + 1) / 4) 
-                 + (table(in, i - 1, j) / 4)  // table(in, i - 1, j) / 4
-                 + (table(in, i + 1, j) / 4); // table(in, i + 1, j) / 4
-
-      if (*cell_out >= 4)
-        diff = 1;      
-    }
-
-  return diff;
-}
-
 #pragma GCC optimize ("unroll-loops")
 int asandPile_do_tile_opt(int x, int y, int width, int height)
 {
@@ -481,39 +458,6 @@ unsigned ssandPile_compute_omp_tiled(unsigned nb_iter)
                            TILE_H - ((y + TILE_H == DIM) + (y == 0)));
       }
     }
-
-    swap_tables();
-
-    if (change == 0)
-    {
-      res = it;
-      break;
-    }
-  }
-
-  return res;
-}
-
-
-unsigned ssandPile_compute_omp_tiledold(unsigned nb_iter)
-{
-  int res = 0;
-  //#pragma omp parallel master
-  for (unsigned it = 1; it <= nb_iter; it++)
-  {
-    int change = 0;
-    //depend(in : table_cell(TABLE, in, y, x), table_cell(TABLE, in, y-1, x), table_cell(TABLE, in, y, x-1), table_cell(TABLE, in, y+1, x), table_cell(TABLE, in, y, x+1))
-    //depend(out : table(out, y, x)) depend(in : table(in, y, x), table(in, y, x-1), table(in, y, x+1), table(in, y-1, x), table(in, y+1, x))
-    #pragma omp parallel shared(change)
-    #pragma omp for schedule(runtime)
-    for (int y = 0; y < DIM; y += TILE_H)
-      for (int x = 0; x < DIM; x += TILE_W)
-        //#pragma omp task firstprivate(y,x) shared(change) depend(out : A[y][x]) depend(in : A[y][x], A[y-1][x], A[y+1][x], A[y][x-1], A[y][x+1])
-        #pragma omp atomic
-        change |=
-            do_tile(x + (x == 0), y + (y == 0),
-                    TILE_W - ((x + TILE_W == DIM) + (x == 0)),
-                    TILE_H - ((y + TILE_H == DIM) + (y == 0)));
 
     swap_tables();
 
@@ -833,6 +777,94 @@ int asandPile_do_tile_ooo(int x, int y, int width, int height)
       }
     }
   return change;
+}
+
+#pragma endregion
+
+#pragma region 4.4 // Lazy OpenMP implementations
+
+static bool* restrict LA_TABLE = NULL;
+
+static inline bool *la_table_cell(bool *restrict i, int y, int x)
+{
+  return i + y * DIM + x;
+}
+
+#define la_table(y, x) (*la_table_cell(LA_TABLE, (y), (x)))
+
+void ssandPile_lazy_init()
+{
+  LA_TABLE = malloc((DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));
+  memset(LA_TABLE, 1, (DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));//met tout à true(1) (pour la première iteration)
+}
+
+void ssandPile_lazy_finalize()
+{
+  free(LA_TABLE);
+}
+
+unsigned ssandPile_compute_lazy(unsigned nb_iter)
+{
+  int res = 0;
+  int change = 0;
+
+  ssandPile_lazy_init();
+
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    int change = 0;
+
+      #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM; y += TILE_H)
+      for (int x = 0; x < DIM; x += TILE_W)
+      {
+        if(!la_table(y/TILE_H, x/TILE_W)) continue;
+
+        int diff = do_tile(x + (x == 0), y + (y == 0),
+                          TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                          TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+        change |= diff;
+
+        #pragma omp atomic
+        la_table(y/TILE_H, x/TILE_W) |= (bool)diff;
+
+        if(diff)//on doit de nouveau calculer les tuiles adjacentes ?:
+        {
+          #pragma omp atomic
+          la_table(y/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
+          #pragma omp atomic
+          la_table(y/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
+          #pragma omp atomic
+          la_table((y - 1 + (y == 0))/TILE_H, x/TILE_W) |= true;
+          #pragma omp atomic
+          la_table((y + 1 - (y + TILE_H == DIM))/TILE_H, x/TILE_W) |= true;
+
+          #pragma omp atomic
+          la_table((y - 1 + (y == 0))/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
+          #pragma omp atomic
+          la_table((y - 1 + (y == 0))/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
+          #pragma omp atomic
+          la_table((y + 1 - (y + TILE_H == DIM))/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
+          #pragma omp atomic
+          la_table((y + 1 - (y + TILE_H == DIM))/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
+        }
+        //printf("change=%d", change, it);
+      }
+            
+    swap_tables();
+
+    #pragma omp barrier
+
+    if (change == 0)
+    {
+      res = it;
+      break;
+    }
+  }
+
+  ssandPile_lazy_finalize();
+
+  return res;
 }
 
 #pragma endregion
