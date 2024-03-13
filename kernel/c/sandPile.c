@@ -803,6 +803,8 @@ void ssandPile_lazy_finalize()
   free(LA_TABLE);
 }
 
+//rapide et cassé:
+//OMP_SCHEDULE=dynamic OMP_NUM_THREADS=16 ./run -k ssandPile -wt opt -s 512 -a alea -n -du -v lazy
 unsigned ssandPile_compute_lazy(unsigned nb_iter)
 {
   int res = 0;
