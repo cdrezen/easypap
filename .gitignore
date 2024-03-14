@@ -2,7 +2,6 @@ public
 .vscode
 *.pdf
 !rapport.pdf
-*.csv
 *.png
 *.sha256
 images

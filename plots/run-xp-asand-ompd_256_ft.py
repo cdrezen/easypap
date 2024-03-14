@@ -3,11 +3,11 @@ from expTools import *
 # expériences avec des tuiles carrées
 easypapOptions = {
 "-k": ["asandPile"],
-"-i": [1024],
+"-i": [256],
 "-v": ["ompd"],
 "-wt": ["ooo"],
 "-s": [256],
-"-ts": [16, 32, 64],
+"-ts": [8, 16, 32, 64],
 "-ft":[""],
 "--label": ["square"],
 "-of": ["asand-ompd_256.csv"]
@@ -31,7 +31,7 @@ execute('./run ', ompICV, easypapOptions, nbrun, verbose=False, easyPath=".")
 
 easypapOptions = {
     "-k": ["asandPile"],
-    "-i": [128],
+    "-i": [256],
     "-v": ["seq"],
     "-s": [256],
     "-of": ["asand-ompd_256.csv"],

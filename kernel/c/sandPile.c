@@ -785,12 +785,12 @@ int asandPile_do_tile_ooo(int x, int y, int width, int height)
 
 static bool* restrict LA_TABLE = NULL;
 
-static inline bool *la_table_cell(bool *restrict i, int y, int x)
+static inline bool *is_active_cell(bool *restrict i, int y, int x)
 {
   return i + y * DIM + x;
 }
 
-#define la_table(y, x) (*la_table_cell(LA_TABLE, (y), (x)))
+#define is_active(y, x) (*is_active_cell(LA_TABLE, (y), (x)))
 
 void ssandPile_lazy_init()
 {
@@ -820,45 +820,72 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
     for (int y = 0; y < DIM; y += TILE_H)
       for (int x = 0; x < DIM; x += TILE_W)
       {
-        if(!la_table(y/TILE_H, x/TILE_W)) continue;
+        // bool last = false;
+        // #pragma omp atomic
+        // last |= is_active(y/TILE_H, x/TILE_W);
+
+        if(!is_active(y/TILE_H, x/TILE_W)) continue;
 
         int diff = do_tile(x + (x == 0), y + (y == 0),
                           TILE_W - ((x + TILE_W == DIM) + (x == 0)),
                           TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+        
+        //#pragma omp atomic
         change |= diff;
-
-        #pragma omp atomic
-        la_table(y/TILE_H, x/TILE_W) |= (bool)diff;
 
         if(diff)//on doit de nouveau calculer les tuiles adjacentes ?:
         {
           #pragma omp atomic
-          la_table(y/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
-          #pragma omp atomic
-          la_table(y/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
-          #pragma omp atomic
-          la_table((y - 1 + (y == 0))/TILE_H, x/TILE_W) |= true;
-          #pragma omp atomic
-          la_table((y + 1 - (y + TILE_H == DIM))/TILE_H, x/TILE_W) |= true;
+          is_active(y/TILE_H, x/TILE_W) |= (bool)diff;
 
           #pragma omp atomic
-          la_table((y - 1 + (y == 0))/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
+          is_active(y/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
           #pragma omp atomic
-          la_table((y - 1 + (y == 0))/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
+          is_active(y/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
           #pragma omp atomic
-          la_table((y + 1 - (y + TILE_H == DIM))/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
+          is_active((y - 1 + (y == 0))/TILE_H, x/TILE_W) |= true;
           #pragma omp atomic
-          la_table((y + 1 - (y + TILE_H == DIM))/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
+          is_active((y + 1 - (y + TILE_H == DIM))/TILE_H, x/TILE_W) |= true;
+
+          //trop loin dans la boucle pour les faire ?
+
+          // #pragma omp atomic
+          // is_active((y - 1 + (y == 0))/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
+          // #pragma omp atomic
+          // is_active((y - 1 + (y == 0))/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
+          // #pragma omp atomic
+          // is_active((y + 1 - (y + TILE_H == DIM))/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
+          // #pragma omp atomic
+          // is_active((y + 1 - (y + TILE_H == DIM))/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
+        }
+        else
+        {
+          #pragma omp atomic
+          is_active(y/TILE_H, x/TILE_W) &= (bool)diff;
         }
         //printf("change=%d", change, it);
       }
-            
-    swap_tables();
 
     #pragma omp barrier
+    
+    swap_tables();
+
 
     if (change == 0)
     {
+/*       bool is_done = true;
+
+      for (int y = 0; y < DIM/TILE_H; y++)
+        for (int x = 0; x < DIM/TILE_W; x++){
+          if(is_active(y, x)) 
+          {
+            is_done = false;
+            break;
+          }
+        }
+      printf("not done it=%d\n", it);
+      if(!is_done) continue; */
+
       res = it;
       break;
     }
