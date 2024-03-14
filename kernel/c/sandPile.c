@@ -787,7 +787,7 @@ static bool* restrict LA_TABLE = NULL;
 
 static inline bool *is_active_cell(bool *restrict i, int y, int x)
 {
-  return i + y * DIM + x;
+  return i + y * (DIM / TILE_H) + x;
 }
 
 #define is_active(y, x) (*is_active_cell(LA_TABLE, (y), (x)))
@@ -820,11 +820,11 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
     for (int y = 0; y < DIM; y += TILE_H)
       for (int x = 0; x < DIM; x += TILE_W)
       {
-        // bool last = false;
-        // #pragma omp atomic
-        // last |= is_active(y/TILE_H, x/TILE_W);
+        bool last = false;
+        #pragma omp atomic
+        last |= is_active(y/TILE_H, x/TILE_W);
 
-        if(!is_active(y/TILE_H, x/TILE_W)) continue;
+        if(!last) continue;
 
         int diff = do_tile(x + (x == 0), y + (y == 0),
                           TILE_W - ((x + TILE_W == DIM) + (x == 0)),
@@ -873,7 +873,7 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
 
     if (change == 0)
     {
-/*       bool is_done = true;
+      bool is_done = true;
 
       for (int y = 0; y < DIM/TILE_H; y++)
         for (int x = 0; x < DIM/TILE_W; x++){
@@ -884,7 +884,7 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
           }
         }
       printf("not done it=%d\n", it);
-      if(!is_done) continue; */
+      if(!is_done) continue;
 
       res = it;
       break;
