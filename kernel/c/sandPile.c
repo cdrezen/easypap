@@ -762,30 +762,6 @@ int asandPile_do_tile_opt1(int x, int y, int width, int height)
 
 #pragma region 4.4 // Lazy OpenMP implementations ssand
 
-/* static bool* restrict LA_TABLE = NULL;//tableau de booleen pour le LAzy
-
-static inline bool* is_active_cell(bool *restrict i, int y, int x)
-{
-  return i + y * (DIM / TILE_H) + x;
-}
-
-#define is_active(y, x) (*is_active_cell(LA_TABLE, (y), (x)))
-
-void ssandPile_init_lazy()
-{
-  ssandPile_init();
-
-  LA_TABLE = malloc((DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));
-  memset(LA_TABLE, 0, (DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));//met tout à true(1) (pour la première iteration)
-}
-
-void ssandPile_finish_lazy()
-{
-  ssandPile_finalize();
-
-  free(LA_TABLE);
-} */
-
 static bool* restrict LA_TABLE = NULL;//tableau de booleen pour le LAzy
 
 static inline bool* is_steady_tile(bool *restrict i, int y, int x)
@@ -939,160 +915,26 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
   return 0;
 }
 
-// //rapide et cassé:
-// //OMP_SCHEDULE=dynamic OMP_NUM_THREADS=16 ./run -k ssandPile -wt opt -s 512 -a alea -n -du -v lazy
-// unsigned ssandPile_compute_lazy(unsigned nb_iter)
-// {
-//   int res = 0;
-//   int change = 0;
-//   bool firstcheck = true;
 
-//   //ssandPile_lazy_init();
-
-//   for (unsigned it = 1; it <= nb_iter; it++)
-//   {
-//     int change = 0;
-
-//       #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change) shared(firstcheck)
-//     for (int y = 0; y < DIM; y += TILE_H)
-//       for (int x = 0; x < DIM; x += TILE_W)
-//       {
-//         // bool last = false;
-//         // #pragma omp atomic
-//         // last |= is_active(y/TILE_H, x/TILE_W);
-
-//         if(!firstcheck && is_active(y/TILE_H, x/TILE_W)) continue;
-
-//         int diff = do_tile(x + (x == 0), y + (y == 0),
-//                           TILE_W - ((x + TILE_W == DIM) + (x == 0)),
-//                           TILE_H - ((y + TILE_H == DIM) + (y == 0)));
-        
-//         //#pragma omp atomic
-//         change |= diff;
-
-//         if(diff)//on doit de nouveau calculer les tuiles adjacentes ?:
-//         {
-//           #pragma omp atomic
-//           is_active(y/TILE_H, x/TILE_W) |= true;
-
-//           // #pragma omp atomic
-//           // is_active(y/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
-//           // #pragma omp atomic
-//           // is_active(y/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
-//           // #pragma omp atomic
-//           // is_active((y - 1 + (y == 0))/TILE_H, x/TILE_W) |= true;
-//           // #pragma omp atomic
-//           // is_active((y + 1 - (y + TILE_H == DIM))/TILE_H, x/TILE_W) |= true;
-
-//           //trop loin dans la boucle pour les faire ?
-
-//           // #pragma omp atomic
-//           // is_active((y - 1 + (y == 0))/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
-//           // #pragma omp atomic
-//           // is_active((y - 1 + (y == 0))/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
-//           // #pragma omp atomic
-//           // is_active((y + 1 - (y + TILE_H == DIM))/TILE_H, (x - 1 + (x == 0)) / TILE_W) |= true;
-//           // #pragma omp atomic
-//           // is_active((y + 1 - (y + TILE_H == DIM))/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) |= true;
-//         }
-//         else
-//         {
-//           // if(firstcheck || (!is_active(y/TILE_H, (x - 1 + (x == 0)) / TILE_W)
-//           //   && !is_active(y/TILE_H, (x + 1 - (x + TILE_W == DIM)) / TILE_W) 
-//           //   && !is_active((y - 1 + (y == 0))/TILE_H, x/TILE_W) 
-//           //   && !is_active((y + 1 - (y + TILE_H == DIM))/TILE_H, x/TILE_W)))
-//           // {
-
-//             #pragma omp atomic
-//             is_active(y/TILE_H, x/TILE_W) &= false;
-
-//             #pragma omp atomic
-//             firstcheck &= false;
-//          // }
-//         }
-//         //printf("change=%d", change, it);
-//       }
-
-//     //#pragma omp barrier
-    
-//     swap_tables();
-
-
-//     if (change == 0)
-//     {
-//       bool is_done = true;
-
-//       for (int y = 0; y < DIM/TILE_H; y++)
-//         for (int x = 0; x < DIM/TILE_W; x++){
-//           if(is_active(y, x)) 
-//           {
-//             is_done = false;
-//             break;
-//           }
-//         }
-//       printf("not done it=%d\n", it);
-//       if(!is_done) continue;
-
-//       res = it;
-//       break;
-//     }
-//   }
-
-//   //ssandPile_lazy_finalize();
-
-//   return res;
-// }
-
-// static inline void ssandPile_do_neighbor_cell_lazy(int ij, int border_pos, bool* is_active_tile)
-// {
-//     if(ij == border_pos)
-//     {
-//       #pragma omp atomic
-//       *is_active_tile |= true;
-//     }
-// }
-
-// #pragma GCC optimize ("unroll-loops")
-// int ssandPile_do_tile_opt1(int x, int y, int width, int height)
-// {
-//   int diff = 0;
-
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++)
-//     {
-//       TYPE *restrict cell_in = table_cell(TABLE, in, i, j);
-//       TYPE *restrict cell_out = table_cell(TABLE, out, i, j);
-
-//       *cell_out = table(in, i, j) % 4
-//                  + (table(in, i, j - 1) / 4) 
-//                  + (table(in, i, j + 1) / 4) 
-//                  + (*(cell_in - DIM) / 4)  // table(in, i - 1, j) / 4
-//                  + (*(cell_in + DIM) / 4); // table(in, i + 1, j) / 4
-
-      
-//       if (*cell_out >= 4)
-//       {
-//         bool *restrict is_active_tile = is_active_cell(LA_TABLE, y / TILE_H, x / TILE_W);
-//         ssandPile_do_neighbor_cell_lazy(i, y, is_active_tile + (DIM/TILE_H));
-//         ssandPile_do_neighbor_cell_lazy(j, x, is_active_tile - 1);
-//         ssandPile_do_neighbor_cell_lazy(j, x + width - 1, is_active_tile + 1);
-//         ssandPile_do_neighbor_cell_lazy(i, y + height - 1, is_active_tile + (DIM/TILE_H));
-//         diff = 1; 
-//       }     
-//     }
-
-//   return diff;
-// }
 
 #pragma endregion
+
+
+#pragma region 4.4 // Lazy OpenMP implementations asand
+
+static inline bool* is_active_cell(bool *restrict i, int y, int x)
+{
+  return i + y * (DIM / TILE_H) + x;
+}
+
+#define is_active(y, x) (*is_active_cell(LA_TABLE, (y), (x)))
 
 void asandPile_init_lazy()
 {
   asandPile_init();
 
   LA_TABLE = malloc((DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));
-  memset(LA_TABLE, 0, (DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));//met tout à true(1) (pour la première iteration)
-  // print_table();
+  memset(LA_TABLE, 1, (DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));//met tout à true(1) (pour la première iteration)
 }
 
 void asandPile_finish_lazy()
@@ -1102,10 +944,52 @@ void asandPile_finish_lazy()
   free(LA_TABLE);
 }
 
+static inline void asandPile_lazy_sync(bool diff, int x, int y)
+{
+  if(diff)
+  {
+    #pragma omp atomic
+    is_active(y, x) |= (bool)diff;
+
+    #pragma omp atomic
+    is_active(y, (x - 1 + (x == 0))) |= true;
+    #pragma omp atomic
+    is_active(y, (x + 1 - (x + TILE_W == DIM))) |= true;
+    #pragma omp atomic
+    is_active((y - 1 + (y == 0)), x) |= true;
+    #pragma omp atomic
+    is_active((y + 1 - (y + TILE_H == DIM)), x) |= true;
+  }
+  else
+  {
+    #pragma omp atomic
+    is_active(y, x) &= (bool)diff;
+  }
+}
+
+// fonction inline pour génerer le code du calcul des cellules voisines qui necessitent une synchronisation si elles sont en bord de tuile
+static inline void asandPile_do_neighbor_cell_lazy(TYPE* cell, TYPE val, int ij, int border_pos, bool* is_active_tile)
+{
+    if(ij == border_pos)
+    {
+      #pragma omp atomic
+      *cell += val;
+
+      #pragma omp atomic
+      *is_active_tile |= true;
+    }
+    else 
+      *cell += val;
+}
+
 #pragma GCC optimize ("unroll-loops")
-int asandPile_do_tile_lazy(int x, int y, int width, int height)
+int asandPile_do_tile_oo1(int x, int y, int width, int height)
 {
   int change = 0;
+  // const bool sync_top = y > 0;
+  // const bool sync_left = x > 0;
+  // const bool sync_right = x + width < DIM;
+  // const bool sync_bottom = y + height < DIM;
 
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) { 
@@ -1113,20 +997,13 @@ int asandPile_do_tile_lazy(int x, int y, int width, int height)
       if (*cell >= 4)
       {
         const TYPE cell_quarter = *cell >> 2;// /4
-        
-        asandPile_do_neighbor_cell(cell-DIM, cell_quarter, i, y);
-        asandPile_do_neighbor_cell(cell-1, cell_quarter, j, x);
-        asandPile_do_neighbor_cell(cell+1, cell_quarter, j, x + width - 1);
-        asandPile_do_neighbor_cell(cell+DIM, cell_quarter, i, y + height - 1);
 
-        if(j == (x + width - 1) && width != (TILE_W - 1)) 
-            is_steady(y, x + TILE_W) = false;
-        if(j == x && width != (TILE_W - 1)) 
-            is_steady(y, x - TILE_W) = false;
-        if(i == (y + height - 1) && height != (TILE_H - 1)) 
-            is_steady(y + TILE_H, x) = false;
-        if(i == y && height != (TILE_H - 1)) 
-            is_steady(y - TILE_H, x) = false;
+        bool *restrict is_active_tile = is_active_cell(LA_TABLE, y / TILE_H, x / TILE_W);
+        
+        asandPile_do_neighbor_cell_lazy(cell-DIM, cell_quarter, i, y, is_active_tile + (DIM/TILE_H));
+        asandPile_do_neighbor_cell_lazy(cell-1, cell_quarter, j, x, is_active_tile - 1);
+        asandPile_do_neighbor_cell_lazy(cell+1, cell_quarter, j, x + width - 1, is_active_tile + 1);
+        asandPile_do_neighbor_cell_lazy(cell+DIM, cell_quarter, i, y + height - 1, is_active_tile + (DIM/TILE_H));
 
         *cell &= 3;
           
@@ -1138,205 +1015,78 @@ int asandPile_do_tile_lazy(int x, int y, int width, int height)
 
 unsigned asandPile_compute_lazy(unsigned nb_iter)
 {
-  bool firstcheck = true;
+  int res = 0;
 
   for (unsigned it = 1; it <= nb_iter; it++)
   {
     int change = 0;
+#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM; y += 2*TILE_H)
+      for (int x = 0; x < DIM; x += 2*TILE_W){
 
-    for (int y = 0; y < DIM; y += TILE_H)
-      for (int x = 0; x < DIM; x += TILE_W)
-      {
-        if(is_steady(y, x)) continue;
+        bool last = false;
+        #pragma omp atomic
+        last |= is_active(y/TILE_H, x/TILE_W);
 
-        int diff =
+        if(!last) continue;
+
+        change |=
             do_tile(x + (x == 0), y + (y == 0),
-                    TILE_W - ((x + TILE_W == DIM) + (x == 0)),
-                    TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+                    TILE_W - (x == 0),
+                    TILE_H - (y == 0));
+        change |=
+             do_tile(x + TILE_W, y + TILE_H,
+                     TILE_W - (x + 2*TILE_W == DIM), 
+                     TILE_H - (y + 2*TILE_H == DIM));
 
-        change |= diff;
-
-        if(diff == 0 
-          && (firstcheck || check_steady(y, x)))
-        {
-          is_steady(y, x) = true;
-        }
-
+        asandPile_lazy_sync((bool)change, x/TILE_W, y/TILE_H);
       }
 
-    firstcheck = false;
+#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for (int y = 0; y < DIM; y += 2*TILE_H)
+      for (int x = TILE_W; x < DIM; x += 2*TILE_W){
+
+        bool last = false;
+        #pragma omp atomic
+        last |= is_active(y/TILE_H, x/TILE_W);
+
+        if(!last) continue;
+
+        change |=
+            do_tile(x, y + (y == 0),
+              TILE_W - (x + TILE_W == DIM),
+              TILE_H - (y == 0));
+
+        change |=
+            do_tile(x - TILE_W + (x == TILE_W), y + TILE_H,
+              TILE_W - (x == TILE_W),
+              TILE_H - (y + 2*TILE_H == DIM));
+
+        asandPile_lazy_sync((bool)change, x/TILE_W, y/TILE_H);
+      }
 
     if (change == 0)
-      return it;
+    {
+      bool is_done = true;
+
+      for (int y = 0; y < DIM/TILE_H; y++)
+        for (int x = 0; x < DIM/TILE_W; x++){
+          if(is_active(y, x)) 
+          {
+            is_done = false;
+            break;
+          }
+        }
+      printf("not done it=%d\n", it);
+      if(!is_done) continue;
+
+      res = it;
+      break;
+    }
   }
 
-  return 0;
+  return res;
 }
-
-#pragma region 4.4 // Lazy OpenMP implementations asand
-
-// void asandPile_init_lazy()
-// {
-//   asandPile_init();
-
-//   LA_TABLE = malloc((DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));
-//   memset(LA_TABLE, 1, (DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));//met tout à true(1) (pour la première iteration)
-// }
-
-// void asandPile_finish_lazy()
-// {
-//   asandPile_finalize();
-
-//   free(LA_TABLE);
-// }
-
-// static inline void asandPile_lazy_sync(bool diff, int x, int y)
-// {
-//   if(diff)
-//   {
-//     #pragma omp atomic
-//     is_active(y, x) |= (bool)diff;
-
-//     #pragma omp atomic
-//     is_active(y, (x - 1 + (x == 0))) |= true;
-//     #pragma omp atomic
-//     is_active(y, (x + 1 - (x + TILE_W == DIM))) |= true;
-//     #pragma omp atomic
-//     is_active((y - 1 + (y == 0)), x) |= true;
-//     #pragma omp atomic
-//     is_active((y + 1 - (y + TILE_H == DIM)), x) |= true;
-//   }
-//   else
-//   {
-//     #pragma omp atomic
-//     is_active(y, x) &= (bool)diff;
-//   }
-// }
-
-// // fonction inline pour génerer le code du calcul des cellules voisines qui necessitent une synchronisation si elles sont en bord de tuile
-// static inline void asandPile_do_neighbor_cell_lazy(TYPE* cell, TYPE val, int ij, int border_pos, bool* is_active_tile)
-// {
-//     if(ij == border_pos)
-//     {
-//       #pragma omp atomic
-//       *cell += val;
-
-//       #pragma omp atomic
-//       *is_active_tile |= true;
-//     }
-//     else 
-//       *cell += val;
-// }
-
-// #pragma GCC optimize ("unroll-loops")
-// int asandPile_do_tile_oo1(int x, int y, int width, int height)
-// {
-//   int change = 0;
-//   // const bool sync_top = y > 0;
-//   // const bool sync_left = x > 0;
-//   // const bool sync_right = x + width < DIM;
-//   // const bool sync_bottom = y + height < DIM;
-
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++) { 
-//       TYPE *restrict cell = atable_cell(TABLE, i, j);
-//       if (*cell >= 4)
-//       {
-//         const TYPE cell_quarter = *cell >> 2;// /4
-
-//         bool *restrict is_active_tile = is_active_cell(LA_TABLE, y / TILE_H, x / TILE_W);
-        
-//         asandPile_do_neighbor_cell_lazy(cell-DIM, cell_quarter, i, y, is_active_tile + (DIM/TILE_H));
-//         asandPile_do_neighbor_cell_lazy(cell-1, cell_quarter, j, x, is_active_tile - 1);
-//         asandPile_do_neighbor_cell_lazy(cell+1, cell_quarter, j, x + width - 1, is_active_tile + 1);
-//         asandPile_do_neighbor_cell_lazy(cell+DIM, cell_quarter, i, y + height - 1, is_active_tile + (DIM/TILE_H));
-
-//         *cell &= 3;
-          
-//         change = 1;
-//       }
-//     }
-//   return change;
-// }
-
-// unsigned asandPile_compute_lazy(unsigned nb_iter)
-// {
-//   int res = 0;
-
-//   //ssandPile_lazy_init();
-
-//   for (unsigned it = 1; it <= nb_iter; it++)
-//   {
-//     int change = 0;
-// #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
-//     for (int y = 0; y < DIM; y += 2*TILE_H)
-//       for (int x = 0; x < DIM; x += 2*TILE_W){
-
-//         bool last = false;
-//         #pragma omp atomic
-//         last |= is_active(y/TILE_H, x/TILE_W);
-
-//         if(!last) continue;
-
-//         change |=
-//             do_tile(x + (x == 0), y + (y == 0),
-//                     TILE_W - (x == 0),
-//                     TILE_H - (y == 0));
-//         change |=
-//              do_tile(x + TILE_W, y + TILE_H,
-//                      TILE_W - (x + 2*TILE_W == DIM), 
-//                      TILE_H - (y + 2*TILE_H == DIM));
-
-//         asandPile_lazy_sync((bool)change, x/TILE_W, y/TILE_H);
-//       }
-
-// #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
-//     for (int y = 0; y < DIM; y += 2*TILE_H)
-//       for (int x = TILE_W; x < DIM; x += 2*TILE_W){
-
-//         bool last = false;
-//         #pragma omp atomic
-//         last |= is_active(y/TILE_H, x/TILE_W);
-
-//         if(!last) continue;
-
-//         change |=
-//             do_tile(x, y + (y == 0),
-//               TILE_W - (x + TILE_W == DIM),
-//               TILE_H - (y == 0));
-
-//         change |=
-//             do_tile(x - TILE_W + (x == TILE_W), y + TILE_H,
-//               TILE_W - (x == TILE_W),
-//               TILE_H - (y + 2*TILE_H == DIM));
-
-//         asandPile_lazy_sync((bool)change, x/TILE_W, y/TILE_H);
-//       }
-
-//     if (change == 0)
-//     {
-//       bool is_done = true;
-
-//       for (int y = 0; y < DIM/TILE_H; y++)
-//         for (int x = 0; x < DIM/TILE_W; x++){
-//           if(is_active(y, x)) 
-//           {
-//             is_done = false;
-//             break;
-//           }
-//         }
-//       printf("not done it=%d\n", it);
-//       if(!is_done) continue;
-
-//       res = it;
-//       break;
-//     }
-//   }
-
-//   //ssandPile_lazy_finalize();
-
-//   return res;
-// }
 
 
 
