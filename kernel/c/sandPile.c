@@ -539,27 +539,6 @@ unsigned ssandPile_compute_omp_task(unsigned nb_iter)
 
 #pragma region 4.3 //OpenMP implementation of the asynchronous version
 
-unsigned asandPile_compute_omp(unsigned nb_iter)
-{
-  for (unsigned it = 1; it <= nb_iter; it++)
-  {
-    int change = 0;
-
-    #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
-    for (int y = 0; y < DIM; y += TILE_H)
-      for (int x = 0; x < DIM; x += TILE_W)
-        change |=
-            do_tile(x + (x == 0), y + (y == 0),
-                    TILE_W - ((x + TILE_W == DIM) + (x == 0)),
-                    TILE_H - ((y + TILE_H == DIM) + (y == 0)));
-
-    if (change == 0)
-      return it;
-  }
-
-  return 0;
-}
-
 static void touch_tile (int x, int y, int width, int height)
 {
   for (int i = y; i < y + height; i++)
@@ -645,7 +624,7 @@ unsigned asandPile_compute_omp_test_2(unsigned nb_iter)
   return res;
 }
 
-unsigned asandPile_compute_ompd(unsigned nb_iter)
+unsigned asandPile_compute_omp(unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++)
   {
@@ -685,7 +664,7 @@ unsigned asandPile_compute_ompd(unsigned nb_iter)
   return 0;
 }
 
-unsigned asandPile_compute_ompdd(unsigned nb_iter)
+unsigned asandPile_compute_omp_task(unsigned nb_iter)
 {
   int res = 0;
 
@@ -751,7 +730,7 @@ static inline void asandPile_do_neighbor_cell(TYPE* cell, TYPE val, int ij, int 
 }
 
 #pragma GCC optimize ("unroll-loops")
-int asandPile_do_tile_ooo(int x, int y, int width, int height)
+int asandPile_do_tile_for_omp(int x, int y, int width, int height)
 {
   int change = 0;
   // const bool sync_top = y > 0;
@@ -973,12 +952,12 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++)
   {
     int change = 0;
-  //#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+  #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
     for (int y = 0; y < DIM; y += TILE_H)
       for (int x = 0; x < DIM; x += TILE_W)
       {
         if(is_steady(y, x)) continue;
-            
+
         int diff = do_tile(x + (x == 0), y + (y == 0),
                     TILE_W - ((x + TILE_W == DIM) + (x == 0)),
                     TILE_H - ((y + TILE_H == DIM) + (y == 0)));
@@ -988,7 +967,9 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
         if(diff == 0 
           && (firstcheck || check_steady(y, x)))
         {
-          is_steady(y, x) = true;
+          
+          #pragma omp atomic
+          is_steady(y, x) |= true;
         }
       }
     firstcheck = false;
