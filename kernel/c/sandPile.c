@@ -730,7 +730,7 @@ static inline void asandPile_do_neighbor_cell(TYPE* cell, TYPE val, int ij, int 
 }
 
 #pragma GCC optimize ("unroll-loops")
-int asandPile_do_tile_for_omp(int x, int y, int width, int height)
+int asandPile_do_tile_opt1(int x, int y, int width, int height)
 {
   int change = 0;
   // const bool sync_top = y > 0;
