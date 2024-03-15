@@ -1,1 +1,1 @@
-OMP_NUM_THREADS=32 OMP_SCHEDULE=static ./run -k asandPile -s 256 -ts 8 -v omp -wt for_omp -n -ft
+OMP_NUM_THREADS=16 OMP_SCHEDULE=static ./run -k asandPile -s 256 -tw 64 -th 16 -v omp -wt opt1 -ft

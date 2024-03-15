@@ -875,47 +875,6 @@ int ssandPile_do_tile_lazy(int x, int y, int width, int height)
 
 bool check_steady(int y, int x)
 {
-  bool tmp = false;
-
-  // if(y == 0){
-  //   if(x == 0) {
-  //     return is_steady(y + TILE_H, x) && is_steady(y, x + TILE_W);
-  //   }
-  //   if(x == DIM - TILE_W){
-  //     return is_steady(y + TILE_H, x) && is_steady(y, x - TILE_W);
-  //   }
-  //   return is_steady(y + TILE_H, x) && is_steady(y, x - TILE_W) && is_steady(y, x + TILE_W);
-  // }
-  // if(x == 0){
-  //   if(y == 0) {
-  //     return is_steady(y + TILE_H, x) && is_steady(y, x + TILE_W);
-  //   }
-  //   if(y == DIM - TILE_H){
-  //     return is_steady(y - TILE_H, x) && is_steady(y, x + TILE_W);
-  //   }
-  //   return is_steady(y + TILE_H, x) && is_steady(y, x + TILE_W) && is_steady(y - TILE_H, x);
-  // }
-  // if(y == DIM - TILE_H){
-  //   if(x == 0) {
-  //     return is_steady(y - TILE_H, x) && is_steady(y, x + TILE_W);
-  //   }
-  //   if(x == DIM - TILE_W){
-  //     return is_steady(y - TILE_H, x) && is_steady(y, x - TILE_W);
-  //   }
-  //   return is_steady(y - TILE_H, x) && is_steady(y, x + TILE_W) && is_steady(y, x - TILE_W);
-  // }
-  // if(x == DIM - TILE_W){
-  //   if(y == 0) {
-  //     return is_steady(y + TILE_H, x) && is_steady(y, x - TILE_W);
-  //   }
-  //   if(y == DIM - TILE_H){
-  //     return is_steady(y - TILE_H, x) && is_steady(y, x - TILE_W);
-  //   }
-  //   return is_steady(y + TILE_H, x) && is_steady(y - TILE_H, x) && is_steady(y, x - TILE_H);
-  // }
-  // return is_steady(y - TILE_H, x) && is_steady(y + TILE_H, x) && is_steady(y, x - TILE_W) && is_steady(y, x + TILE_W);
-  
-
   if(x == 0 && y != 0 && y != DIM - TILE_H){
     return is_steady(y + TILE_H, x) && is_steady(y - TILE_H, x) && is_steady(y, x + TILE_W);
   }
@@ -947,8 +906,6 @@ bool check_steady(int y, int x)
 
 unsigned ssandPile_compute_lazy(unsigned nb_iter)
 {
-  bool firstcheck = true;
-  
   for (unsigned it = 1; it <= nb_iter; it++)
   {
     int change = 0;
@@ -964,15 +921,13 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
 
         change |= diff;
 
-        if(diff == 0 
-          && (firstcheck || check_steady(y, x)))
+        if(diff == 0 && check_steady(y, x))
         {
           
           #pragma omp atomic
           is_steady(y, x) |= true;
         }
       }
-    firstcheck = false;
     // print_table();
 
 
