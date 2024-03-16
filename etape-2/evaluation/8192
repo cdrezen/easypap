@@ -1,1 +1,1 @@
-OMP_NUM_THREADS=1 OMP_SCHEDULE=static ./run -k asandPile -s 8192  -a alea CHAINE_A_SUPPRIMER 
+OMP_SCHEDULE=static OMP_NUM_THREADS=20 ./run -k asandPile -wt opt1 -s 8192 -v omp -th 8 -tw 4096 -a alea -ft
