@@ -1,1 +1,1 @@
-OMP_NUM_THREADS=1 OMP_SCHEDULE=static ./run -k ssandPile -s 1024 -a spirals CHAINE_A_SUPPRIMER 
+OMP_NUM_THREADS=42 OMP_SCHEDULE=static ./run -k ssandPile -v omp_tiled -wt opt -th 8 -tw 512 -a spirals
