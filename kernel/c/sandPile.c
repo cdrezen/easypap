@@ -771,7 +771,13 @@ static inline bool* is_steady_tile(bool *restrict i, int y, int x)
   //return DIM * DIM * step + i + (y / TILE_H) * DIM + x;
 }
 
-#define is_steady(y, x) (*is_steady_tile(LA_TABLE, (y), (x)))
+#define is_steady(y, x) (*is_steady_machin((y), (x)))
+
+bool* is_steady_machin(int y, int x)
+{
+  
+  return is_steady_tile(LA_TABLE, y, x);
+}
 
 void print_table()
 {
@@ -789,8 +795,8 @@ void ssandPile_init_lazy()
 {
   ssandPile_init();
 
-  LA_TABLE = malloc((DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));
-  memset(LA_TABLE, 0, (DIM / TILE_H) * (DIM / TILE_W) * sizeof(bool));//met tout à true(1) (pour la première iteration)
+  LA_TABLE = malloc(2 * NB_TILES_X * NB_TILES_Y * sizeof(bool));
+  memset(LA_TABLE, 0, 2 * NB_TILES_X * NB_TILES_Y  * sizeof(bool));//met tout à true(1) (pour la première iteration)
   // print_table();
 }
 
@@ -849,6 +855,9 @@ int ssandPile_do_tile_lazy(int x, int y, int width, int height)
 //     }
 // }
 
+/* check_steady retourne true si la tuile (x,y) possede des voisins stables 
+*  rappel : is_steady retourne true si la tuile est stable
+*/
 bool check_steady(int y, int x)
 {
   if(x == 0 && y != 0 && y != DIM - TILE_H){
@@ -882,6 +891,8 @@ bool check_steady(int y, int x)
 
 unsigned ssandPile_compute_lazy(unsigned nb_iter)
 {
+  bool firstCheck = true;//
+
   for (unsigned it = 1; it <= nb_iter; it++)
   {
     int change = 0;
@@ -897,14 +908,16 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
 
         change |= diff;
 
-        if(diff == 0 && check_steady(y, x))
+        if(diff == 0 && (firstCheck || check_steady(y, x)))//
         {
-          
           #pragma omp atomic
           is_steady(y, x) |= true;
+
         }
       }
     // print_table();
+    
+    firstCheck = false;//
 
 
     swap_tables();
