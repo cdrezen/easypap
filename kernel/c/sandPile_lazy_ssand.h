@@ -2,6 +2,8 @@
 
 #pragma region 4.4 // Lazy OpenMP implementations ssand
 
+//TODO: tableau d'objets à 4 ou 5 valeurs (tuile + bords) pour gerer l'inactivité des 4 bords plutot que tableau de 1bool/1tuile pour ne pas toujours réactiver 4 tuiles voisines?
+
 static bool* restrict LA_TABLE = NULL;//tableau de booleen pour le LAzy
 
 static inline bool* is_steady_tile(bool *restrict i, int step, int y, int x)
@@ -11,13 +13,7 @@ static inline bool* is_steady_tile(bool *restrict i, int step, int y, int x)
   //return DIM * DIM * step + i + (y / TILE_H) * DIM + x;
 }
 
-#define is_steady(step, y, x) (*is_steady_machin((step), (y), (x)))
-
-bool* is_steady_machin(int step, int y, int x)
-{
-  
-  return is_steady_tile(LA_TABLE, step, y, x);
-}
+#define is_steady(step, y, x) (*is_steady_tile(LA_TABLE, (step), (y), (x)))
 
 void print_table()
 {
@@ -69,51 +65,46 @@ int ssandPile_do_tile_lazy(int x, int y, int width, int height)
                  + (*(cell_in - DIM) / 4)  // table(in, i - 1, j) / 4
                  + (*(cell_in + DIM) / 4); // table(in, i + 1, j) / 4
       
-      if (*cell_out >= 4)
+      if (*cell_in != *cell_out)//(*cell_out >= 4) modifié pour tuile stagnate
       {
         diff = 1;
-        // if(j == (x + width - 1) && width != (TILE_W - 1))
-        // {
-        //   is_steady(in, y, x + TILE_W) = false;
-        //   is_steady(out, y, x + TILE_W) = false;
-        // }
+      }
 
-        // if(j == x && width != (TILE_W - 1))
-        // {
-        //   is_steady(in, y, x - TILE_W) = false;
-        //   is_steady(out, y, x - TILE_W) = false;
-        // }
+      // if (*cell_out >= 4 || *cell_in >= 4)
+      // {
+      //   if(j == x && width != (TILE_W - 1))
+      //   {
+      //     //is_steady(in, y, x - TILE_W) = false;
+      //     is_steady(out, y, x - TILE_W) = false;
+      //   }
+        
+      //   if(j == (x + width - 1) && (x != DIM - TILE_W))//width != (TILE_W - 1))
+      //   {
+      //     //is_steady(in, y, x + TILE_W) = false;
+      //     is_steady(out, y, x + TILE_W) = false;
+      //   }
 
-        // if(i == (y + height - 1) && height != (TILE_H - 1)) 
-        // {
-        //   is_steady(in, y + TILE_H, x) = false;
-        //   is_steady(out, y + TILE_H, x) = false;
-        // }
-
-        // if(i == y && height != (TILE_H - 1)) 
-        // {
-        //   is_steady(in, y - TILE_H, x) = false;
-        //   is_steady(out, y - TILE_H, x) = false;
-        // }
-      }   
+      //   if(i == y && height != (TILE_H - 1)) 
+      //   {
+      //     //is_steady(in, y - TILE_H, x) = false;
+      //     is_steady(out, y - TILE_H, x) = false;
+      //   }
+        
+      //   if(i == (y + height - 1) && (y != DIM - TILE_H))//height != (TILE_H - 1)) 
+      //   {
+      //     //is_steady(in, y + TILE_H, x) = false;
+      //     is_steady(out, y + TILE_H, x) = false;
+      //   }
+      // }   
     }
 
   return diff;
 }
 
-// fonction inline pour génerer le code du calcul des cellules voisines qui necessitent une synchronisation si elles sont en bord de tuile
-// static inline void check_steady(int xy, int border, int y, int x)
-// {
-//     if(xy == border)
-//     {
-      
-//     }
-// }
-
 /* check_steady retourne true si la tuile (x,y) possede des voisins stables 
 *  rappel : is_steady retourne true si la tuile est stable
 */
-bool check_steady(int step, int y, int x)
+bool has_all_neighbors_steady(int step, int y, int x)
 {
   if(x == 0 && y != 0 && y != DIM - TILE_H){
     return is_steady(step, y + TILE_H, x) && is_steady(step, y - TILE_H, x) && is_steady(step, y, x + TILE_W);
@@ -144,6 +135,21 @@ bool check_steady(int step, int y, int x)
   return is_steady(step, y - TILE_H, x) && is_steady(step, y + TILE_H, x) && is_steady(step, y, x - TILE_W) && is_steady(step, y, x + TILE_W);
 }
 
+//retourne true si au moins une tuile voisine est active, false si tout les voisin sont stable.
+bool has_active_neighbors(int step, int y, int x)
+{
+  return (!(x == 0) && !is_steady(step, y, x - TILE_W))
+      || (!(x + TILE_W == DIM) && !is_steady(step, y, x + TILE_W))
+      || (!(y + TILE_H == DIM) && !is_steady(step, y + TILE_H, x))
+      || (!(y == 0) && !is_steady(step, y - TILE_H, x));
+
+  // if (!(x == 0) && !is_steady(step, y, x - TILE_W)) return true;
+  // if (!(x + TILE_W == DIM) && !is_steady(step, y, x + TILE_W)) return true;
+  // if (!(y + TILE_H == DIM) && !is_steady(step, y + TILE_H, x)) return true;
+  // if (!(y == 0) && !is_steady(step, y - TILE_H, x)) return true;
+  // return false;
+}
+
 unsigned ssandPile_compute_lazy(unsigned nb_iter)
 {
   bool firstCheck = true;//
@@ -163,34 +169,34 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
 
         change |= diff;
 
-        if(diff == 0 && (firstCheck || check_steady(in, y, x)))//
+        if(diff == 0)// && (firstCheck || has_active_neighbors(in, y, x)))//
         {
           #pragma omp atomic
           is_steady(in, y, x) |= true;
         }
         else
         {
-          if (!(x + TILE_W == DIM))
-          {
-            is_steady(in, y, x + TILE_W) = false;
-            is_steady(out, y, x + TILE_W) = false;
-          }
-
           if (!(x == 0))
           {
-            is_steady(in, y, x - TILE_W) = false;
+            //is_steady(in, y, x - TILE_W) = false;
             is_steady(out, y, x - TILE_W) = false;
+          }
+          
+          if (!(x + TILE_W == DIM))
+          {
+            //is_steady(in, y, x + TILE_W) = false;
+            is_steady(out, y, x + TILE_W) = false;
           }
 
           if (!(y + TILE_H == DIM))
           {
-            is_steady(in, y + TILE_H, x) = false;
+            //is_steady(in, y + TILE_H, x) = false;
             is_steady(out, y + TILE_H, x) = false;
           }
 
           if (!(y == 0))
           {
-            is_steady(in, y - TILE_H, x) = false;
+            //is_steady(in, y - TILE_H, x) = false;
             is_steady(out, y - TILE_H, x) = false;
           }
         }
@@ -203,21 +209,6 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
     swap_tables();
     if (change == 0)
     {
-      // bool is_done = true;
-      // for (int y = 0; y < DIM/TILE_H; y++)
-      //   for (int x = 0; x < DIM/TILE_W; x++){
-      //     if(!is_steady(in, y, x) || !is_steady(out, y, x)) 
-      //     {
-      //       is_done = false;
-      //       break;
-      //     }
-      //   }
-      // if(!is_done)
-      // {
-      //   printf("not done it=%d\n", it);
-      //   continue;
-      // }
-
       return it;
     }
   }
