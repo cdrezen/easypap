@@ -10,6 +10,7 @@ static void touch_tile (int x, int y, int width, int height)
       next_img (i, j) = cur_img (j, i) = next_img (j, i) = cur_img (i, j) = 0; //atable_cell =?
 }
 
+//OMP_NUM_THREADS=42 OMP_SCHEDULE=static ./run -k asandPile -s 512  -tw 4 -th 512 -v omp -wt opt1 -n -du -sh -ft
 unsigned asandPile_ft (unsigned nb_iter)
 {
       #pragma omp parallel for collapse(2) schedule(runtime)
@@ -18,7 +19,10 @@ unsigned asandPile_ft (unsigned nb_iter)
       {
         touch_tile(x + (x == 0), y + (y == 0),
                     TILE_W - (x == 0),
-                    TILE_H - (y == 0));
+                    TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//TILE_H - (y == 0));
+
+        if(TILE_H == DIM) continue;
+        
         touch_tile(x + TILE_W, y + TILE_H,
                     TILE_W - (x + 2*TILE_W == DIM), 
                     TILE_H - (y + 2*TILE_H == DIM));
@@ -30,7 +34,9 @@ unsigned asandPile_ft (unsigned nb_iter)
 
         touch_tile(x, y + (y == 0),
                     TILE_W - (x + TILE_W == DIM),
-                    TILE_H - (y == 0));
+                    TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//TILE_H - (y == 0));
+
+        if(TILE_H == DIM) continue;
 
         touch_tile(x - TILE_W + (x == TILE_W), y + TILE_H,
                   TILE_W - (x == TILE_W),
@@ -88,6 +94,7 @@ unsigned asandPile_compute_omp_test_2(unsigned nb_iter)
   return res;
 }
 
+//dbg : OMP_NUM_THREADS=16 OMP_SCHEDULE=static ./run -k asandPile -s 32 -tw 8 -th 32 -v omp -wt dbg
 unsigned asandPile_compute_omp(unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++)
@@ -99,7 +106,10 @@ unsigned asandPile_compute_omp(unsigned nb_iter)
         change |=
             do_tile(x + (x == 0), y + (y == 0),
                     TILE_W - (x == 0),
-                    TILE_H - (y == 0));
+                    TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//TILE_H - (y == 0));
+
+        if(TILE_H == DIM) continue;//pas bon iter 1:
+          
         change |=
              do_tile(x + TILE_W, y + TILE_H,
                      TILE_W - (x + 2*TILE_W == DIM), 
@@ -109,12 +119,13 @@ unsigned asandPile_compute_omp(unsigned nb_iter)
 #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
     for (int y = 0; y < DIM; y += 2*TILE_H)
       for (int x = TILE_W; x < DIM; x += 2*TILE_W){
-
+        //:
         change |=
             do_tile(x, y + (y == 0),
               TILE_W - (x + TILE_W == DIM),
-              TILE_H - (y == 0));
+              TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//etait pas bon iter 7
 
+        if(TILE_H == DIM) continue;//etait pas bon iter 1:
         change |=
             do_tile(x - TILE_W + (x == TILE_W), y + TILE_H,
               TILE_W - (x == TILE_W),
@@ -144,7 +155,9 @@ unsigned asandPile_compute_omp_task(unsigned nb_iter)
         change |=
             do_tile(x + (x == 0), y + (y == 0),
                     TILE_W - (x == 0),
-                    TILE_H - (y == 0));
+                    TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));
+
+        if(TILE_H == DIM) continue;
 
         #pragma omp task shared(change) firstprivate(x,y) depend(out : A[y][x]) depend(in : A[y-1][x], A[y][x-1], A[y][x+1], A[y][x-1])
         change |=
@@ -160,7 +173,9 @@ unsigned asandPile_compute_omp_task(unsigned nb_iter)
         change |=
             do_tile(x1, y + (y == 0),
               TILE_W - (x1 + TILE_W == DIM),
-              TILE_H - (y == 0));
+              TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));
+
+        if(TILE_H == DIM) continue;
         
         #pragma omp task shared(change) firstprivate(x1,y) depend(out : A[y][x]) depend(in : A[y-1][x], A[y][x-1], A[y][x+1], A[y][x-1])
         change |=
@@ -196,6 +211,8 @@ static inline void asandPile_do_neighbor_cell(TYPE* cell, TYPE val, int ij, int 
 #pragma GCC optimize ("unroll-loops")
 int asandPile_do_tile_opt1(int x, int y, int width, int height)
 {
+  //printf("x=%d y=%d width=%d height=%d\n", x, y, width, height);
+
   int change = 0;
   // const bool sync_top = y > 0;
   // const bool sync_left = x > 0;
@@ -220,6 +237,23 @@ int asandPile_do_tile_opt1(int x, int y, int width, int height)
       }
     }
   return change;
+}
+
+int asandPile_do_tile_dbg(int x, int y, int width, int height)
+{
+  //printf("x=%d y=%d width=%d height=%d\n", x, y, width, height);
+
+  int change = 0;
+
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++) 
+    {
+      if(i + 1 >= DIM || j + 1 >= DIM || i - 1 < 0 || j - 1 < 0)
+      {
+        printf("AH x=%d y=%d width=%d height=%d\n", x, y, width, height);
+        return 0;
+      }
+    }
 }
 
 #pragma endregion
