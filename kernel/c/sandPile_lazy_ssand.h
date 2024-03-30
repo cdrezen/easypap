@@ -28,7 +28,7 @@ void ssandPile_init_lazy()
   ssandPile_init();
 
   LA_TABLE = malloc(2 * NB_TILES_X * NB_TILES_Y * sizeof(bool));
-  memset(LA_TABLE, 0, 2 * NB_TILES_X * NB_TILES_Y  * sizeof(bool));//met tout à false(0) (pour la première iteration)
+  memset(LA_TABLE, 0, 2 * NB_TILES_X * NB_TILES_Y  * sizeof(bool));//met tout à false(0)
   // print_table();
 }
 
@@ -115,6 +115,7 @@ bool has_active_neighbors(int step, int y, int x)
   // return false;
 }
 
+//OMP_NUM_THREADS=16 ./run -k ssandPile -s 512 -v lazy -wt lazy -n -sh -a alea -ts 32
 unsigned ssandPile_compute_lazy(unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++)
@@ -139,25 +140,24 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
         }
         else
         {
+          is_steady(out, y, x) &= false;
+
           if (!(x == 0))
-            is_steady(out, y, x - TILE_W) = false;
+            is_steady(out, y, x - TILE_W) &= false;
 
           if (!(x + TILE_W == DIM))
-            is_steady(out, y, x + TILE_W) = false;
+            is_steady(out, y, x + TILE_W) &= false;
 
           if (!(y + TILE_H == DIM))
-            is_steady(out, y + TILE_H, x) = false;
+            is_steady(out, y + TILE_H, x) &= false;
 
           if (!(y == 0))
-            is_steady(out, y - TILE_H, x) = false;
+            is_steady(out, y - TILE_H, x) &= false;
         }
       }
 
     swap_tables();
-    if (change == 0)
-    {
-      return it;
-    }
+    if (change == 0) return it;
   }
 
   return 0;
@@ -221,6 +221,8 @@ int ssandPile_do_tile_lazy1(int x, int y, int width, int height)
       {
         diff = 1;
 
+        is_steady(out, y, x) &= false;
+
         if (j == x && x != 1)
           is_steady(out, y, x - TILE_W) &= false;
 
@@ -251,6 +253,7 @@ int ssandPile_do_tile_lazy1(int x, int y, int width, int height)
   return diff;
 }
 
+//OMP_NUM_THREADS=32 ./run -k ssandPile -s 512 -v lazy -wt lazy -n -sh -a alea -ts 32
 unsigned ssandPile_compute_lazy1(unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++)
