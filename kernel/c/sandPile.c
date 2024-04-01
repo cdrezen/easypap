@@ -3,6 +3,7 @@
 #include "sandPile_omp_asand.h"
 #include "sandPile_lazy_ssand.h"
 #include "sandPile_lazy_asand.h"
+#include "sandPile_avx.h"
 #include <immintrin.h>
 
 
@@ -382,16 +383,16 @@ int ssandPile_do_tile_avx(int x, int y, int width, int height)
             __m256i left_in_values = _mm256_loadu_si256((__m256i *)&table(in, i, j - 1));
             __m256i right_in_values = _mm256_loadu_si256((__m256i *)&table(in, i, j + 1));
 
-            __m256i out = _mm256_add_epi32(in_values, next_in_values);
-            out = _mm256_add_epi32(out, left_in_values);
-            out = _mm256_add_epi32(out, right_in_values);
-            out = _mm256_and_si256(out, _mm256_set1_epi32(3));
+            __m256i out_ = _mm256_add_epi32(in_values, next_in_values);
+            out_ = _mm256_add_epi32(out_, left_in_values);
+            out_ = _mm256_add_epi32(out_, right_in_values);
+            out_ = _mm256_and_si256(out_, _mm256_set1_epi32(3));
 
             __m256i current_values = _mm256_loadu_si256((__m256i *)&table(in, i, j));
 
-            __m256i res = _mm256_cmpgt_epi32(out, current_values);
+            __m256i res = _mm256_cmpgt_epi32(out_, current_values);
 
-            _mm256_storeu_si256((__m256i *)&table(out, i, j), out);
+            _mm256_storeu_si256((__m256i *)&table(out, i, j), out_);
             if (!_mm256_testz_si256(res, res))
                 diff = 1;
         }

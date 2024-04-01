@@ -9,9 +9,9 @@ void ssandPile_tile_check_avx (void)
   easypap_vec_check (AVX_VEC_SIZE_FLOAT, DIR_HORIZONTAL);
 }
 
-//OMP_NUM_THREADS=1 ./run -k ssandPile -s 128 -v tmpavx -wt avx -n -du -ts 8 -i 4242
+//OMP_NUM_THREADS=1 ./run -k ssandPile -s 128 -v tmpavx -wt avx1 -n -du -ts 8 -i 4242
 #pragma GCC optimize ("unroll-loops")
-int ssandPile_do_tile_avx(int x, int y, int width, int height)
+int ssandPile_do_tile_avx1(int x, int y, int width, int height)
 {
   int diff = 0;
   const __m256i THREE_VEC = _mm256_set1_epi32(3);
