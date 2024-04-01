@@ -3,6 +3,7 @@
 #include "sandPile_omp_asand.h"
 #include "sandPile_lazy_ssand.h"
 #include "sandPile_lazy_asand.h"
+#include "sandPile_avx.h"
 
 static inline TYPE *atable_cell(TYPE *restrict i, int y, int x)
 {
