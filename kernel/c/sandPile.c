@@ -4,8 +4,6 @@
 #include "sandPile_lazy_ssand.h"
 #include "sandPile_lazy_asand.h"
 #include "sandPile_avx.h"
-#include <immintrin.h>
-
 
 static inline TYPE *atable_cell(TYPE *restrict i, int y, int x)
 {
@@ -349,7 +347,7 @@ int asandPile_do_tile_opt(int x, int y, int width, int height)
     for (int j = x; j < x + width; j++)
     {
       TYPE *restrict cell = atable_cell(TABLE, i, j);
-      if (*cell >= 4)
+      if (*cell >= 4)<=3
       {
         const TYPE cell_quarter = *cell >> 2;// /4
 
@@ -370,37 +368,7 @@ int asandPile_do_tile_opt(int x, int y, int width, int height)
 
 #pragma region 4.5
 
-int ssandPile_do_tile_avx(int x, int y, int width, int height)
-{
-    int diff = 0;
-
-    for (int i = y; i < y + height; i++)
-    {
-        for (int j = x; j < x + width; j += 8)
-        {
-            __m256i in_values = _mm256_loadu_si256((__m256i *)&table(in, i - 1, j));
-            __m256i next_in_values = _mm256_loadu_si256((__m256i *)&table(in, i + 1, j));
-            __m256i left_in_values = _mm256_loadu_si256((__m256i *)&table(in, i, j - 1));
-            __m256i right_in_values = _mm256_loadu_si256((__m256i *)&table(in, i, j + 1));
-
-            __m256i out_ = _mm256_add_epi32(in_values, next_in_values);
-            out_ = _mm256_add_epi32(out_, left_in_values);
-            out_ = _mm256_add_epi32(out_, right_in_values);
-            out_ = _mm256_and_si256(out_, _mm256_set1_epi32(3));
-
-            __m256i current_values = _mm256_loadu_si256((__m256i *)&table(in, i, j));
-
-            __m256i res = _mm256_cmpgt_epi32(out_, current_values);
-
-            _mm256_storeu_si256((__m256i *)&table(out, i, j), out_);
-            if (!_mm256_testz_si256(res, res))
-                diff = 1;
-        }
-    }
-
-    return diff;
-}
-
+//ssandPile_do_tile_avx -> sandPile_avx.h
 
 #pragma endregion
 
