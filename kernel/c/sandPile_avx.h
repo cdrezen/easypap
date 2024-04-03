@@ -139,10 +139,23 @@ unsigned asandPile_compute_tmpavx(unsigned nb_iter)
     for (int y = 0; y < DIM; y += 2*TILE_H)
       for (int x = 0; x < DIM; x += 2*TILE_W)
       {
-        if ((x + TILE_W == DIM) || (y + TILE_H == DIM) || (y == 0) || (x == 0))
+        if ((x + 2*TILE_W == DIM) || (y + 2*TILE_H == DIM) || (y == 0) || (x == 0))
         {
             //////////////////////////////
+            change |=
+            asandPile_do_tile_opt1(x + (x == 0), y + (y == 0),
+                    TILE_W - (x == 0),
+                    TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//TILE_H - (y == 0));
+
+            if(TILE_H == DIM) continue;//pas bon iter 1:
+          
+            change |=
+            asandPile_do_tile_opt1(x + TILE_W, y + TILE_H,
+                     TILE_W - (x + 2*TILE_W == DIM), 
+                     TILE_H - (y + 2*TILE_H == DIM));
         }
+        else
+        {
 
         change |=
             do_tile(x + (x == 0), y + (y == 0),
@@ -155,6 +168,7 @@ unsigned asandPile_compute_tmpavx(unsigned nb_iter)
              do_tile(x + TILE_W, y + TILE_H,
                      TILE_W - (x + 2*TILE_W == DIM), 
                      TILE_H - (y + 2*TILE_H == DIM));
+        }
       }
 
 #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
@@ -162,11 +176,22 @@ unsigned asandPile_compute_tmpavx(unsigned nb_iter)
       for (int x = TILE_W; x < DIM; x += 2*TILE_W)
       {
 
-        if ((x + TILE_W == DIM) || (y + TILE_H == DIM) || (y == 0) || (x == 0))
+        if ((x + TILE_W == DIM) || (y + 2*TILE_H == DIM) || (y == 0) || (x == TILE_W))
         {
             //////////////////////////////
+            change |=
+            asandPile_do_tile_opt1(x, y + (y == 0),
+              TILE_W - (x + TILE_W == DIM),
+              TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//etait pas bon iter 7
+
+            if(TILE_H == DIM) continue;//etait pas bon iter 1:
+            change |=
+            asandPile_do_tile_opt1(x - TILE_W + (x == TILE_W), y + TILE_H,
+              TILE_W - (x == TILE_W),
+              TILE_H - (y + 2*TILE_H == DIM));
         }
-        
+        else
+        {
         //:
         change |=
             do_tile(x, y + (y == 0),
@@ -178,6 +203,7 @@ unsigned asandPile_compute_tmpavx(unsigned nb_iter)
             do_tile(x - TILE_W + (x == TILE_W), y + TILE_H,
               TILE_W - (x == TILE_W),
               TILE_H - (y + 2*TILE_H == DIM));
+        }
       }
 
     if (change == 0)
@@ -187,7 +213,70 @@ unsigned asandPile_compute_tmpavx(unsigned nb_iter)
   return 0;
 }
 
-//OMP_NUM_THREADS=1 ./run -k ssandPile -s 128 -v tmpavx -wt avx1 -n -du -ts 8 -i 4242
+//OMP_NUM_THREADS=1 ./run -k asandPile -s 128 -v tmpavx -wt avx -n -du -ts 8 -i 2199
+#pragma GCC optimize ("unroll-loops")
+int asandPile_do_tile_avx(int x, int y, int width, int height)
+{
+  int diff = 0;
+  const __m256i THREE_VEC = _mm256_set1_epi32(3);
+  const __m256i FOUR_VEC = _mm256_set1_epi32(4);
+  //const __m256i ZERO_VEC = _mm256_set1_epi32(0);
+
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j += AVX_VEC_SIZE_FLOAT) 
+    {
+      __m256i cell, cell_left, cell_right, cell_top, cell_bottom;
+
+
+      cell = _mm256_loadu_si256 ((__m256i *)&atable(i, j));//Tj,i
+
+
+      __mmask8 mask_leq = _mm256_cmpge_epu32_mask(cell, FOUR_VEC);//cell >= 4
+      if (mask_leq)
+      {
+        diff = 1;//mask_leq;
+
+        cell_left = _mm256_loadu_si256((__m256i *)&atable(i, j - 1));  // Tj-1,i
+        cell_right = _mm256_loadu_si256((__m256i *)&atable(i, j + 1)); // Tj+1,i
+
+        cell_top = _mm256_loadu_si256((__m256i *)&atable(i + 1, j));    // Tj,i+k+1??
+        cell_bottom = _mm256_loadu_si256((__m256i *)&atable(i - 1, j)); // Tj,i-1
+
+        // D <- Tij / 4
+        __m256i D = _mm256_srli_epi32(cell, 2);
+
+        // Tij = Tij % 4 + (D << 1) + (D >> 1):
+
+        cell = _mm256_and_si256(cell, THREE_VEC);               // Tij = Tij % 4
+        cell = _mm256_add_epi32(cell, _mm256_slli_epi32(D, 1)); //+= D << 1
+        cell = _mm256_add_epi32(cell, _mm256_srli_epi32(D, 1)); //+= D >> 1
+
+        cell_left = _mm256_add_epi32(cell_left, D); // Tj-1,i += D
+        cell_right = _mm256_add_epi32(cell_right, D);// Tj+1,i += D
+
+        __m256i D0_VEC = _mm256_set1_epi32(_mm256_extract_epi8(D, 0));
+        __m256i Dk_VEC = _mm256_set1_epi32(_mm256_extract_epi8(D, 7));
+
+        //cell_bottom = _mm256_add_epi32(cell_bottom, D0_VEC); // Tj,i-1 += D[0]?
+        //cell_top = _mm256_adds_epi8(cell_top, Dk_VEC); // Tj,i+k+1?? += D[k] k serait 7 (8bit) ?
+        _mm256_mask_storeu_epi8((__m256i *)&atable(i - 1, j), 0x00FFFFFF, D);//xFF000000
+        _mm256_mask_storeu_epi8((__m256i *)&atable(i + 1, j), 0xFFFFFF00, D);//0x000000FF
+        //cell_top = _mm256_permutex2var_epi8 ?¿ (,,)
+        //cell_top = _mm256_add_epi32(cell_top, Dk_VEC);       
+
+        //_mm256_storeu_si256((__m256i *)&atable(i - 1, j), cell_bottom);
+        //_mm256_storeu_si256((__m256i *)&atable(i + 1, j), cell_top);
+
+        _mm256_storeu_si256((__m256i *)&atable(i, j - 1), cell_left);
+        _mm256_storeu_si256((__m256i *)&atable(i, j), cell);
+        _mm256_storeu_si256((__m256i *)&atable(i, j + 1), cell_right);
+      }
+    }
+
+  return  diff;
+}
+
+//essaie recopie opt (pas formule de l'enoncé)
 #pragma GCC optimize ("unroll-loops")
 int asandPile_do_tile_avx1(int x, int y, int width, int height)
 {
@@ -207,42 +296,42 @@ int asandPile_do_tile_avx1(int x, int y, int width, int height)
       cell = _mm256_loadu_si256 ((__m256i *)&atable(i, j));//Tj,i
 
 
-      __mmask8 mask_leq = _mm256_cmple_epu32_mask(cell, THREE_VEC);//cell <= 3
-      if(mask_leq) continue;
+      __mmask8 mask_leq = _mm256_cmpge_epu32_mask(cell, FOUR_VEC);//cell <= 3
+      if (mask_leq)
+      {
 
+        diff = 1;//mask_leq;
 
-      diff = mask_leq;
+        cell_left = _mm256_loadu_si256((__m256i *)&atable(i, j - 1));  // Tj-1,i
+        cell_right = _mm256_loadu_si256((__m256i *)&atable(i, j + 1)); // Tj+1,i
 
-      cell_left = _mm256_loadu_si256 ((__m256i *)&atable(i, j - 1));//Tj-1,i
-      cell_right = _mm256_loadu_si256 ((__m256i *)&atable(i, j + 1));//Tj+1,i
+        cell_top = _mm256_loadu_si256((__m256i *)&atable(i + 1, j));    // Tj,i+k+1??
+        cell_bottom = _mm256_loadu_si256((__m256i *)&atable(i - 1, j)); // Tj,i-1
 
-      cell_top = _mm256_loadu_si256 ((__m256i *)&atable(i + 1, j));//Tj,i+k+1??
-      cell_bottom = _mm256_loadu_si256 ((__m256i *)&atable(i - 1, j));//Tj,i-1
+        // D <- Tij / 4
+        __m256i D = _mm256_srli_epi32(cell, 2);
 
-      // D <- Tij / 4
-      __m256i D = _mm256_srli_epi32(cell, 2);
+        // Tij = Tij % 4 + (D << 1) + (D >> 1):
 
-   
-      //Tij = Tij % 4 + (D << 1) + (D >> 1):
+        cell = _mm256_and_si256(cell, THREE_VEC);               // Tij = Tij % 4
+        //cell = _mm256_add_epi32(cell, _mm256_slli_epi32(D, 1)); //+= D << 1
+        //cell = _mm256_add_epi32(cell, _mm256_srli_epi32(D, 1)); //+= D >> 1
 
-      cell = _mm256_and_si256(cell, THREE_VEC);// Tij = Tij % 4
-      cell = _mm256_add_epi32(cell, _mm256_slli_epi32(D, 1));//+= D << 1
-      cell = _mm256_add_epi32(cell, _mm256_srli_epi32(D, 1));//+= D >> 1
+        cell_left = _mm256_add_epi32(cell_left, D); // Tj-1,i += D
+        cell_right = _mm256_add_epi32(cell_right, D);// Tj+1,i += D
 
-    
-      cell_left = _mm256_add_epi32(cell_left, D);//Tj-1,i += D
-      cell_right = _mm256_add_epi32(cell_left, D);;//Tj+1,i += D
+        //__m256i D0_VEC = _mm256_set1_epi32(_mm256_extract_epi8(D, 0));
+        //__m256i Dk_VEC = _mm256_set1_epi32(_mm256_extract_epi8(D, 7));
+        cell_bottom = _mm256_add_epi32(cell_bottom, D);//D0_VEC); // Tj,i-1 += D[0]?
+        cell_top = _mm256_add_epi32(cell_top, D);// Dk_VEC);       // Tj,i+k+1?? += D[k] k serait 7 (8bit) ?
 
+        _mm256_storeu_si256((__m256i *)&atable(i - 1, j), cell_bottom);
+        _mm256_storeu_si256((__m256i *)&atable(i + 1, j), cell_top);
 
-      cell_bottom = _mm256_add_epi32(cell_bottom, D);//Tj,i-1 += D[0]?
-      cell_top = _mm256_add_epi32(cell_top, D);//Tj,i+k+1?? += D[k] k serait 7 (8bit) ?
-      
-      _mm256_storeu_si256((__m256i *)&atable(i - 1, j), cell_bottom);
-      _mm256_storeu_si256((__m256i *)&atable(i + 1, j), cell_top);
-
-      _mm256_storeu_si256((__m256i *)&atable(i, j - 1), cell_left);
-      _mm256_storeu_si256((__m256i *)&atable(i, j), cell);
-      _mm256_storeu_si256((__m256i *)&atable(i, j + 1), cell_right);      
+        _mm256_storeu_si256((__m256i *)&atable(i, j - 1), cell_left);
+        _mm256_storeu_si256((__m256i *)&atable(i, j), cell);
+        _mm256_storeu_si256((__m256i *)&atable(i, j + 1), cell_right);
+      }
     }
 
   return  diff;

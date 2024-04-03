@@ -347,7 +347,7 @@ int asandPile_do_tile_opt(int x, int y, int width, int height)
     for (int j = x; j < x + width; j++)
     {
       TYPE *restrict cell = atable_cell(TABLE, i, j);
-      if (*cell >= 4)<=3
+      if (*cell >= 4)
       {
         const TYPE cell_quarter = *cell >> 2;// /4
 
@@ -362,6 +362,78 @@ int asandPile_do_tile_opt(int x, int y, int width, int height)
     }
   
   return change;
+}
+
+static void ssandPile_touch_tile (int x, int y, int width, int height)
+{
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++)
+      table(in, i, j) = table(in, j, i) = table(out, j, i) = table(out, i, j) = 0;
+}
+
+static void asandPile_touch_tile (int x, int y, int width, int height)
+{
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++)
+      atable(i, j) = atable(j, i) = 0;
+}
+
+#pragma GCC optimize ("unroll-loops")
+unsigned ssandPile_ft(unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++)
+  {
+    #pragma omp parallel for collapse(2) schedule(runtime)
+    for (int y = 0; y < DIM; y += TILE_H)
+    {
+      for (int x = 0; x < DIM; x += TILE_W)
+      {
+        ssandPile_touch_tile(x + (x == 0), y + (y == 0),
+                           TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+                           TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+      }
+    }
+
+    swap_tables();
+  }
+
+  return 0;
+}
+
+//OMP_NUM_THREADS=42 OMP_SCHEDULE=static ./run -k asandPile -s 512  -tw 4 -th 512 -v omp -wt opt1 -n -du -sh -ft
+unsigned asandPile_ft (unsigned nb_iter)
+{
+      #pragma omp parallel for collapse(2) schedule(runtime)
+    for (int y = 0; y < DIM; y += 2*TILE_H)
+      for (int x = 0; x < DIM; x += 2*TILE_W)
+      {
+        asandPile_touch_tile(x + (x == 0), y + (y == 0),
+                    TILE_W - (x == 0),
+                    TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//TILE_H - (y == 0));
+
+        if(TILE_H == DIM) continue;
+        
+        asandPile_touch_tile(x + TILE_W, y + TILE_H,
+                    TILE_W - (x + 2*TILE_W == DIM), 
+                    TILE_H - (y + 2*TILE_H == DIM));
+      }
+
+      #pragma omp parallel for collapse(2) schedule(runtime)
+    for (int y = 0; y < DIM; y += 2*TILE_H)
+      for (int x = TILE_W; x < DIM; x += 2*TILE_W){
+
+        asandPile_touch_tile(x, y + (y == 0),
+                    TILE_W - (x + TILE_W == DIM),
+                    TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//TILE_H - (y == 0));
+
+        if(TILE_H == DIM) continue;
+
+        asandPile_touch_tile(x - TILE_W + (x == TILE_W), y + TILE_H,
+                  TILE_W - (x == TILE_W),
+                  TILE_H - (y + 2*TILE_H == DIM));
+  }
+
+  return 0;
 }
 
 #pragma endregion
