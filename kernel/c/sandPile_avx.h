@@ -259,8 +259,10 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
 
         //cell_bottom = _mm256_add_epi32(cell_bottom, D0_VEC); // Tj,i-1 += D[0]?
         //cell_top = _mm256_adds_epi8(cell_top, Dk_VEC); // Tj,i+k+1?? += D[k] k serait 7 (8bit) ?
-        _mm256_mask_storeu_epi8((__m256i *)&atable(i - 1, j), 0x00FFFFFF, D);//xFF000000
-        _mm256_mask_storeu_epi8((__m256i *)&atable(i + 1, j), 0xFFFFFF00, D);//0x000000FF
+        //_mm256_mask_storeu_epi8((__m256i *)&atable(i - 1, j), 0x00FFFFFF, D);//xFF000000
+        //_mm256_mask_storeu_epi8((__m256i *)&atable(i + 1, j), 0xFFFFFF00, D);//0x000000FF
+        _mm256_mask_storeu_epi32((__m256i *)&atable(i - 1, j), 0, D);
+        _mm256_mask_storeu_epi32((__m256i *)&atable(i + 1, j), 255, D);//0x000000FF
         //cell_top = _mm256_permutex2var_epi8 ?¿ (,,)
         //cell_top = _mm256_add_epi32(cell_top, Dk_VEC);       
 
