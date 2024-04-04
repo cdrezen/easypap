@@ -68,6 +68,43 @@ int ssandPile_do_tile_avx1(int x, int y, int width, int height)
   return  diff;
 }
 
+int ssandPile_do_tile_avx11(int x, int y, int width, int height)
+{
+    int diff = 0;
+    const __m512i THREE_VEC = _mm512_set1_epi32(3);
+
+    for (int i = y; i < y + height; i++)
+    {
+        for (int j = x; j < x + width; j += 16) // Utilisation de pas de 16 pour AVX-512
+        {
+            __m512i cell_in = _mm512_loadu_si512((__m512i *)&table(in, i, j));
+            __m512i cell_out = _mm512_loadu_si512((__m512i *)&table(out, i, j));
+
+            __m512i cell_left = _mm512_loadu_si512((__m512i *)&table(in, i, j - 1));
+            __m512i cell_right = _mm512_loadu_si512((__m512i *)&table(in, i, j + 1));
+            __m512i cell_top = _mm512_loadu_si512((__m512i *)&table(in, i + 1, j));
+            __m512i cell_bottom = _mm512_loadu_si512((__m512i *)&table(in, i - 1, j));
+
+            // Calcul de cell_out = cell_in % 4 (= &3) + neighbors / 4
+            cell_out = _mm512_and_epi32(cell_in, THREE_VEC);
+            cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_left, 2));
+            cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_right, 2));
+            cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_top, 2));
+            cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_bottom, 2));
+
+            // Stockage du résultat
+            _mm512_storeu_si512((__m512i *)&table(out, i, j), cell_out);
+
+            // Comparaison de cell_in et cell_out pour détecter les modifications
+            __mmask16 mask = _mm512_cmpneq_epu32_mask(cell_in, cell_out);
+            if (mask != 0)
+                diff = 1;
+        }
+    }
+
+    return diff;
+}
+
 unsigned ssandPile_compute_tmpavx(unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++)
@@ -213,6 +250,9 @@ unsigned asandPile_compute_tmpavx(unsigned nb_iter)
   return 0;
 }
 
+
+
+
 //OMP_NUM_THREADS=1 ./run -k asandPile -s 128 -v tmpavx -wt avx -n -du -ts 8 -i 2199
 #pragma GCC optimize ("unroll-loops")
 int asandPile_do_tile_avx(int x, int y, int width, int height)
@@ -277,6 +317,7 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
 
   return  diff;
 }
+
 
 //essaie recopie opt (pas formule de l'enoncé)
 #pragma GCC optimize ("unroll-loops")
