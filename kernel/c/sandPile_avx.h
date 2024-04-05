@@ -36,24 +36,29 @@ int ssandPile_do_tile_avx(int x, int y, int width, int height)
 
             // Calcul de cell_out = cell_in % 4 (= &3) + neighbors / 4
             cell_out = _mm512_and_epi32(cell_in, THREE_VEC);
-            cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_left, 2));
             if(j != DIM - AVX512_VEC_SIZE_FLOAT)
             {
+              cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_left, 2));
               cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_right, 2)); 
+              cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_top, 2));
+              cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_bottom, 2));
             }
             else
             {
+              cell_out = _mm512_mask_add_epi32(cell_out, 0x7FFF, cell_out, _mm512_srli_epi32(cell_left, 2));
               cell_out = _mm512_mask_add_epi32(cell_out, 0x3FFF, cell_out, _mm512_srli_epi32(cell_right, 2));
+              cell_out = _mm512_mask_add_epi32(cell_out, 0x7FFF, cell_out, _mm512_srli_epi32(cell_top, 2));
+              cell_out = _mm512_mask_add_epi32(cell_out, 0x7FFF, cell_out, _mm512_srli_epi32(cell_bottom, 2));
             }
-            cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_top, 2));
-            cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_bottom, 2));
+            
 
             // Stockage du résultat
             _mm512_storeu_si512((__m512i *)&table(out, i, j), cell_out);
 
             // Comparaison de cell_in et cell_out pour détecter les modifications
             __mmask16 mask = _mm512_cmpneq_epu32_mask(cell_in, cell_out);
-            diff = mask;//0 si cell_in != cell_out
+            diff = mask;
+            //0 si cell_in != cell_out
 
         }
     }

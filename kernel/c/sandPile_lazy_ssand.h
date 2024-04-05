@@ -4,9 +4,11 @@
 
 static bool* restrict LA_TABLE = NULL;//tableau de booleen pour le LAzy
 
+//pas bon : OMP_NUM_THREADS=42 OMP_SCHEDULE=static ./run -k ssandPile -s 128 -v lazy -wt lazy -th 16 -tw 128 -n -du
+//          OMP_NUM_THREADS=1 OMP_SCHEDULE=static ./run -k ssandPile -s 128 -v lazy -wt lazy -th 4 -tw 128 -n
 static inline bool* is_steady_tile(bool *restrict i, int step, int y, int x)
-{
-  return NB_TILES_X * NB_TILES_Y * step + i + (y / TILE_H) * (DIM / TILE_H) + (x / TILE_W);
+{  
+  return NB_TILES_X * NB_TILES_Y * step + i + (y / TILE_H) * NB_TILES_Y + (x / TILE_W);
 }
 
 #define is_steady(step, y, x) (*is_steady_tile(LA_TABLE, (step), (y), (x)))
@@ -27,8 +29,10 @@ void ssandPile_init_lazy()
 {
   ssandPile_init();
 
-  LA_TABLE = malloc(2 * NB_TILES_X * NB_TILES_Y * sizeof(bool));
-  memset(LA_TABLE, 0, 2 * NB_TILES_X * NB_TILES_Y  * sizeof(bool));//met tout à false(0)
+  printf("DIM=%d NB_X=%d NB_Y=%d NB_X*NB_Y=%d DIM/NB_Y=%d DIM/T_H=%d\n", DIM, NB_TILES_X, NB_TILES_Y, NB_TILES_X*NB_TILES_Y, DIM/NB_TILES_Y, DIM/TILE_H);
+
+  LA_TABLE = calloc(2 * NB_TILES_X * NB_TILES_Y, sizeof(bool));
+  //memset(LA_TABLE, 0, 2 * NB_TILES_X * NB_TILES_Y  * sizeof(bool));//met tout à false(0)
   // print_table();
 }
 
@@ -135,7 +139,6 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
 
         if(diff == 0)// && (firstCheck || has_active_neighbors(in, y, x)))//
         {
-          #pragma omp atomic
           is_steady(in, y, x) |= true;
         }
         else
@@ -143,15 +146,19 @@ unsigned ssandPile_compute_lazy(unsigned nb_iter)
           is_steady(out, y, x) &= false;
 
           if (!(x == 0))
+            #pragma omp atomic
             is_steady(out, y, x - TILE_W) &= false;
 
           if (!(x + TILE_W == DIM))
+            #pragma omp atomic
             is_steady(out, y, x + TILE_W) &= false;
 
           if (!(y + TILE_H == DIM))
+            #pragma omp atomic
             is_steady(out, y + TILE_H, x) &= false;
 
           if (!(y == 0))
+            #pragma omp atomic
             is_steady(out, y - TILE_H, x) &= false;
         }
       }
