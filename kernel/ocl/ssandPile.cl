@@ -1,7 +1,7 @@
 #include "kernel/ocl/common.cl"
 
 
-__kernel void ssandPile_ocl (__global unsigned *in, __global unsigned *out)
+__kernel void ssandPile_ocl2 (__global unsigned *in, __global unsigned *out)
 {
   int x = get_global_id (0);
   int y = get_global_id (1);
@@ -26,6 +26,21 @@ __kernel void ssandPile_ocl (__global unsigned *in, __global unsigned *out)
                       + in[pos - DIM] / 4;
     out[pos] = cell_out;
   }
+}
+
+__kernel void ssandPile_ocl(__global unsigned *in, __global unsigned *out) {
+    int x = get_global_id(0);
+    int y = get_global_id(1);
+    int pos = y * DIM + x;
+
+    if (x != 0 && y != 0 && x != DIM - 1 && y != DIM - 1) {
+        unsigned cell_out = in[pos] % 4
+                          + in[pos + 1] / 4 
+                          + in[pos - 1] / 4
+                          + in[pos + DIM] / 4
+                          + in[pos - DIM] / 4;
+        out[pos] = cell_out;
+    }
 }
 
 
