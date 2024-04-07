@@ -7,6 +7,25 @@ __kernel void ssandPile_ocl (__global unsigned *in, __global unsigned *out)
   int y = get_global_id (1);
 
   //TODO
+
+  int pos = y * DIM + x;
+
+  if (x != 0 && y != 0 && x != DIM-1 && y != DIM-1)  //pour le pas calculer les tuiles des bords
+  {
+    // unsigned cell_out = in[pos] % 4;
+    // cell_out += in[pos + 1] / 4;
+    // cell_out += in[pos - 1] / 4;
+    // cell_out += in[pos + DIM] / 4;
+    // cell_out += in[pos - DIM] / 4;
+    // out[pos] = cell_out;
+
+    unsigned cell_out = in[pos] % 4
+                      + in[pos + 1] / 4 
+                      + in[pos - 1] / 4
+                      + in[pos + DIM] / 4
+                      + in[pos - DIM] / 4;
+    out[pos] = cell_out;
+  }
 }
 
 
