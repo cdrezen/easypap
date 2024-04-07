@@ -146,6 +146,7 @@ int ssandPile_do_tile_avx_spirals(int x, int y, int width, int height)
 {
     int diff = 0;
     const __m512i THREE_VEC = _mm512_set1_epi32(3);
+    const __m512i ZERO_VEC = _mm512_set1_epi8(0);
 
     int j = x;
 
@@ -184,27 +185,31 @@ int ssandPile_do_tile_avx_spirals(int x, int y, int width, int height)
             __mmask16 mask = _mm512_cmpneq_epu32_mask(cell_in, cell_out);
             if(mask != 0)
             {
-              #pragma omp atomic
-              is_steady(out, y, x) &= false;
+              //const int K = AVX512_VEC_SIZE_FLOAT - 1;
 
+              // for (int k = 0; k < AVX512_VEC_SIZE_FLOAT; k += 1) 
+              //   {
+              //     #pragma omp atomic
+              //     is_steady(out, y, x + k) &= false;
+              //   }
+              //is_steady(out, y, x) &= false;
+              is_steady(out, y, x + AVX512_VEC_SIZE_FLOAT) &= false;
+              //_mm512_storeu_epi8((__m512i *)&is_steady(out, y, x), ZERO_VEC);
+              
               if (j == x && x != 1){
-              #pragma omp atomic
-              is_steady(out, y, x - TILE_W) &= false;
+                is_steady(out, y, x - TILE_W) &= false;
               }
 
-              if (j == (x + width - 1) && ((x + width - 1) != DIM - 1)) {
-              #pragma omp atomic
-              is_steady(out, y, x + TILE_W) &= false;
+              if (j == (x + width - AVX512_VEC_SIZE_FLOAT)){// && (x + width - 1) != DIM - 1) {
+                is_steady(out, y, x + TILE_W) &= false;
               }
 
               if (i == y && y != 1){
-              #pragma omp atomic
-              is_steady(out, y - TILE_H, x) &= false;
+                is_steady(out, y - TILE_H, x) &= false;
               }
         
-              if (i == (y + height - 1) && ((y + height - 1) != DIM - 1)){
-              #pragma omp atomic
-              is_steady(out, y + TILE_H, x) &= false;
+              if (i == (y + height-1)){// && ((y + height - 1) != DIM - 1)){
+                is_steady(out, y + TILE_H, x) &= false;;
               }
               
               diff = 1;

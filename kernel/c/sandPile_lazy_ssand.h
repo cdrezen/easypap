@@ -29,7 +29,7 @@ void ssandPile_init_lazy()
 {
   ssandPile_init();
 
-  printf("DIM=%d NB_X=%d NB_Y=%d NB_X*NB_Y=%d DIM/NB_Y=%d DIM/T_H=%d\n", DIM, NB_TILES_X, NB_TILES_Y, NB_TILES_X*NB_TILES_Y, DIM/NB_TILES_Y, DIM/TILE_H);
+  //printf("DIM=%d NB_X=%d NB_Y=%d NB_X*NB_Y=%d DIM/NB_Y=%d DIM/T_H=%d\n", DIM, NB_TILES_X, NB_TILES_Y, NB_TILES_X*NB_TILES_Y, DIM/NB_TILES_Y, DIM/TILE_H);
 
   LA_TABLE = calloc(2 * NB_TILES_X * NB_TILES_Y, sizeof(bool));
   //memset(LA_TABLE, 0, 2 * NB_TILES_X * NB_TILES_Y  * sizeof(bool));//met tout à false(0)
