@@ -27,7 +27,7 @@ from expTools import *
 
 easypapOptions = {
      "-k": ["ssandPile"],
-    "-i": [256],
+    "-i": [500],
     "-v": ["omp_tiled"],
     "-wt": ["avx"],
     "-s": [1024],
@@ -42,24 +42,43 @@ ompICV = {
 }
 
 #del easypapOptions["-ts"]
-easypapOptions["--label"] = ["line"]
-easypapOptions["-th"] = [16, 32, 64, 128]
-easypapOptions["-tw"] = [16, 32, 64, 128, 512, 1024]
+easypapOptions["--label"] = ["carre"]
+easypapOptions["-ts"] = [16, 32]
 
-nbruns = 1
+nbruns=4
 
 execute("./run ", ompICV, easypapOptions, nbruns, verbose=False, easyPath=".")
 
-# Lancement de la version seq avec le nombre de thread impose a 1
+#rect
+
+del easypapOptions["-ts"]
+
+easypapOptions["--label"] = ["rect"]
+easypapOptions["-th"] = [1]
+easypapOptions["-tw"] = [512]
+
+execute("./run ", ompICV, easypapOptions, nbruns, verbose=False, easyPath=".")
 
 del easypapOptions["-th"]
 del easypapOptions["-tw"]
+easypapOptions["-th"] = [16]
+easypapOptions["-tw"] = [32]
 
-easypapOptions["--label"] = ["line"]
-easypapOptions["-th"] = [1]
-easypapOptions["-tw"] = [16, 32, 64, 128, 512, 1024]
+execute("./run ", ompICV, easypapOptions, nbruns, verbose=False, easyPath=".")
 
-nbruns = 1
+easypapOptions["--label"] = ["rect1"]
+
+del easypapOptions["-th"]
+del easypapOptions["-tw"]
+easypapOptions["-th"] = [8]
+easypapOptions["-tw"] = [32]
+
+execute("./run ", ompICV, easypapOptions, nbruns, verbose=False, easyPath=".")
+
+del easypapOptions["-th"]
+del easypapOptions["-tw"]
+easypapOptions["-th"] = [32]
+easypapOptions["-tw"] = [16]
 
 execute("./run ", ompICV, easypapOptions, nbruns, verbose=False, easyPath=".")
 
@@ -67,14 +86,13 @@ del easypapOptions["-th"]
 del easypapOptions["-tw"]
 easypapOptions = {
     "-k": ["ssandPile"],
-    "-i": [256],
+    "-i": [500],
     "-v": ["omp_tiled"],
     "-wt": ["opt"],
     "-s": [1024],
     "-of": ["ssand-avx-omp_1024.csv"],
 }
-ompICV = {"OMP_NUM_THREADS": [1]}
-execute("./run ", ompICV, easypapOptions, nbruns, verbose=False, easyPath=".")
+execute("./run ", ompICV, easypapOptions, nbruns=1, verbose=False, easyPath=".")
 
 
 print("Recommended plot:")

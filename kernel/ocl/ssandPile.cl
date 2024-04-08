@@ -19,11 +19,11 @@ __kernel void ssandPile_ocl2 (__global unsigned *in, __global unsigned *out)
     // cell_out += in[pos - DIM] / 4;
     // out[pos] = cell_out;
 
-    unsigned cell_out = in[pos] % 4
-                      + in[pos + 1] / 4 
-                      + in[pos - 1] / 4
-                      + in[pos + DIM] / 4
-                      + in[pos - DIM] / 4;
+    unsigned cell_out = in[pos] & 3
+                      + in[pos + 1] >> 2 
+                      + in[pos - 1] >> 2
+                      + in[pos + DIM] >> 2
+                      + in[pos - DIM] >> 2;
     out[pos] = cell_out;
   }
 }

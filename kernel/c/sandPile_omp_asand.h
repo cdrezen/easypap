@@ -13,7 +13,7 @@ unsigned asandPile_compute_omp_test_2(unsigned nb_iter)
   {
     int change = 0;
 
-      //#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+      //#pragma omp parallel for shared(change)// collapse(2) schedule(runtime) reduction(|:change)
     for (int y = 0; y < DIM; y += TILE_H) {
         #pragma omp parallel for shared(change) //reduction(|:change)
       for (int x = 0; x < DIM; x += TILE_W)
@@ -57,23 +57,24 @@ unsigned asandPile_compute_omp(unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++)
   {
     int change = 0;
-#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+      #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
     for (int y = 0; y < DIM; y += 2*TILE_H)
       for (int x = 0; x < DIM; x += 2*TILE_W){
+        
         change |=
             do_tile(x + (x == 0), y + (y == 0),
                     TILE_W - (x == 0),
                     TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//TILE_H - (y == 0));
 
         if(TILE_H == DIM) continue;//pas bon iter 1:
-          
+
         change |=
              do_tile(x + TILE_W, y + TILE_H,
                      TILE_W - (x + 2*TILE_W == DIM), 
                      TILE_H - (y + 2*TILE_H == DIM));
       }
 
-#pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+      #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
     for (int y = 0; y < DIM; y += 2*TILE_H)
       for (int x = TILE_W; x < DIM; x += 2*TILE_W){
         //:
@@ -83,6 +84,7 @@ unsigned asandPile_compute_omp(unsigned nb_iter)
               TILE_H - (y == 0) - (y == 0 && TILE_H == DIM));//etait pas bon iter 7
 
         if(TILE_H == DIM) continue;//etait pas bon iter 1:
+
         change |=
             do_tile(x - TILE_W + (x == TILE_W), y + TILE_H,
               TILE_W - (x == TILE_W),
@@ -95,6 +97,7 @@ unsigned asandPile_compute_omp(unsigned nb_iter)
 
   return 0;
 }
+
 
 unsigned asandPile_compute_omp_task(unsigned nb_iter)
 {
