@@ -53,13 +53,13 @@ int ssandPile_do_tile_avx(int x, int y, int width, int height)
             cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_left, 2));
 
             const __m512i J_VEC = _mm512_set1_epi32(j);
-
             __mmask16 mask_last = _mm512_cmpeq_epu32_mask(J_VEC, LAST_VEC_J);// = if(j != DIM - AVX512_VEC_SIZE_FLOAT) :
 
             __m512i regular = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_right, 2));//if
             __m512i last_tile_case = _mm512_mask_add_epi32(cell_out, 0x3FFF, cell_out, _mm512_srli_epi32(cell_right, 2));//else
 
             cell_out = _mm512_mask_blend_epi32(mask_last, regular, last_tile_case);
+             //cell_out = _mm512_mask_add_epi32(cell_out, _mm512_kand(0x3FFF, mask_last), cell_out, _mm512_srli_epi32(cell_right, 2));
 
             // Stockage du résultat
             _mm512_storeu_si512((__m512i *)&table(out, i, j), cell_out);
