@@ -288,11 +288,10 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
   const __m512i THREE_VEC = _mm512_set1_epi32(3);
   const __m512i FOUR_VEC = _mm512_set1_epi32(4);
   const __m512i ZERO_VEC = _mm512_set1_epi32(0);
-  TYPE Dk[16] = { 0 }; 
 
   TYPE* ptr = atable_cell(TABLE, y - 1, x);
 
-  #pragma omp simd collapse(2) reduction(|:diff) safelen(AVX512_VEC_SIZE_FLOAT*5) private(Dk) aligned(ptr:32*5)
+  #pragma omp simd collapse(2) reduction(|:diff) safelen(AVX512_VEC_SIZE_FLOAT*5) aligned(ptr:32*5)// private(Dk)
   for (int i = y; i < y + height; i++){
     for (int j = x; j < x + width; j += AVX512_VEC_SIZE_FLOAT) 
     {
@@ -306,6 +305,8 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
       __m512i cells_top = _mm512_loadu_si512 ((__m256i *)&atable(i + 1, j));    
       __m512i cells_bottom = _mm512_loadu_si512((__m256i *)&atable(i - 1, j)); 
 
+     
+
       __m512i D = _mm512_srli_epi32(cells, 2);
 
       // %4 + D<<1 +D>>1 :
@@ -318,14 +319,26 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
       cells_top = _mm512_add_epi32(cells_top, D);
       cells_bottom = _mm512_add_epi32(cells_bottom, D);
 
-      _mm512_storeu_epi32(&Dk, D);
+      __m512i cells_left = _mm512_loadu_si512((__m512i *)&atable(i, j - 1));
+      __m512i cells_right = _mm512_loadu_si512((__m512i *)&atable(i, j + 1));
+
+
+      //TYPE Dk[16] = { 0 }; 
+      //_mm512_storeu_epi32(&Dk, D);
 
       //Tj-1,i += D[0]:
       //#pragma omp atomic
-      atable(i, j - 1) += Dk[0];//_mm512_cvtsi512_si32(D);
+      //atable(i, j - 1) += Dk[0];//_mm512_cvtsi512_si32(D);
+      //__m512i Dk0_VEC = _mm512_set1_epi32(Dk[0]);
+      cells_left = _mm512_mask_add_epi32(cells_left, 0x0001, cells_left, D);
+      _mm512_storeu_si512((__m512i *)&atable(i, j - 1), cells_left);
+
       //Tj+1+k,i += D[k] :
       //#pragma omp atomic
-      atable(i, j + AVX512_VEC_SIZE_FLOAT) += Dk[AVX512_VEC_SIZE_FLOAT - 1];//if(x == DIM - AVX512_VEC_SIZE_FLOAT)?
+      //atable(i, j + AVX512_VEC_SIZE_FLOAT) += Dk[AVX512_VEC_SIZE_FLOAT - 1];//if(x == DIM - AVX512_VEC_SIZE_FLOAT)?
+      //__m512i Dkk_VEC = _mm512_set1_epi32(Dk[AVX512_VEC_SIZE_FLOAT - 1]);
+      cells_right = _mm512_mask_add_epi32(cells_right, 0x8000, cells_right, D);
+      _mm512_storeu_si512((__m512i *)&atable(i, j + 1), cells_right);
 
       _mm512_storeu_si512((__m512i *)&atable(i - 1, j), cells_bottom);
       _mm512_storeu_si512((__m512i *)&atable(i, j), cells);
