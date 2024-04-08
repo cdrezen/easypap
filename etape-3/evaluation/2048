@@ -1,1 +1,1 @@
-OMP_NUM_THREADS=32 OMP_SCHEDULE=static ./run -k ssandPile -s 2048 -v lazy1 -wt avx_spirals -a spirals -ts 16
+OMP_NUM_THREADS=18 OMP_SCHEDULE=static ./run -k ssandPile -s 2048 -v lazy1 -wt avx_spirals -a spirals -ts 16
