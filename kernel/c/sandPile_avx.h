@@ -30,14 +30,13 @@ void asandPile_tile_check_avx_256 (void)
 //OMP_NUM_THREADS=32 OMP_SCHEDULE=static ./run -k ssandPile -s 8192 -v lazy -wt avx -ts 16 -a alea -n -du -sh
 int ssandPile_do_tile_avx(int x, int y, int width, int height)
 {
-    int diff = 0;
+    unsigned diff = 0;
     const __m512i THREE_VEC = _mm512_set1_epi32(3);
-
-    int j = x;
+    const __m512i LAST_VEC_J = _mm512_set1_epi32(DIM - AVX512_VEC_SIZE_FLOAT);
 
     for (int i = y; i < y + height; i++)
     {
-        for (j = x; j < x + width; j += AVX512_VEC_SIZE_FLOAT) // Utilisation de pas de 16 pour AVX-512
+        for (int j = x; j < x + width; j += AVX512_VEC_SIZE_FLOAT) // Utilisation de pas de 16 pour AVX-512
         {
             __m512i cell_in = _mm512_loadu_si512((__m512i *)&table(in, i, j));
             __m512i cell_out = _mm512_loadu_si512((__m512i *)&table(out, i, j));
@@ -53,24 +52,21 @@ int ssandPile_do_tile_avx(int x, int y, int width, int height)
             cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_bottom, 2));
             cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_left, 2));
 
-            if(j != DIM - AVX512_VEC_SIZE_FLOAT)
-            {
-              cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_right, 2));            
-            }
-            else
-            {
-              cell_out = _mm512_mask_add_epi32(cell_out, 0x3FFF, cell_out, _mm512_srli_epi32(cell_right, 2));
-            }
-            
+            const __m512i J_VEC = _mm512_set1_epi32(j);
+
+            __mmask16 mask_last = _mm512_cmpeq_epu32_mask(J_VEC, LAST_VEC_J);// = if(j != DIM - AVX512_VEC_SIZE_FLOAT) :
+
+            __m512i regular = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_right, 2));//if
+            __m512i last_tile_case = _mm512_mask_add_epi32(cell_out, 0x3FFF, cell_out, _mm512_srli_epi32(cell_right, 2));//else
+
+            cell_out = _mm512_mask_blend_epi32(mask_last, regular, last_tile_case);
 
             // Stockage du résultat
             _mm512_storeu_si512((__m512i *)&table(out, i, j), cell_out);
 
             // Comparaison de cell_in et cell_out pour détecter les modifications
             __mmask16 mask = _mm512_cmpneq_epu32_mask(cell_in, cell_out);
-            if(mask != 0) diff = 1;
-            //0 si cell_in != cell_out
-
+            diff |= mask;
         }
     }
 
@@ -83,9 +79,10 @@ int ssandPile_do_tile_avx(int x, int y, int width, int height)
 //OMP_NUM_THREADS=43 OMP_SCHEDULE=static ./run -k ssandPile -s 1024 -i 10000 -v tmpavx -wt avx_256 -th 8 -tw 1024 -n -ft
 int ssandPile_do_tile_avx_256(int x, int y, int width, int height)
 {
-  int diff = 0;
+  unsigned diff = 0;
   const __m256i THREE_VEC = _mm256_set1_epi32(3);
-  //const __m256i ZERO_VEC = _mm256_set1_epi32(0);
+  const __m256i LAST_VEC_J = _mm256_set1_epi32(DIM - AVX_VEC_SIZE_FLOAT);
+
 
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j += AVX_VEC_SIZE_FLOAT) {
@@ -116,17 +113,16 @@ int ssandPile_do_tile_avx_256(int x, int y, int width, int height)
       // cell_out += neighbors / 4 :
       
       cell_out = _mm256_add_epi32(cell_out, cell_left);
-
-      if(j != DIM - AVX_VEC_SIZE_FLOAT)
-      {
-        cell_out = _mm256_add_epi32(cell_out, cell_right); 
-      }
-      else
-      {
-        cell_out = _mm256_mask_add_epi32(cell_out, 0x3F, cell_out, cell_right);
-      }
       cell_out = _mm256_add_epi32(cell_out, cell_top);
       cell_out = _mm256_add_epi32(cell_out, cell_bottom);
+
+      const __m256i J_VEC = _mm256_set1_epi32(j);
+      __mmask8 mask_last = _mm256_cmpeq_epu32_mask(J_VEC, LAST_VEC_J);// = if(j != DIM - AVX512_VEC_SIZE_FLOAT) :
+
+      __m256i regular = _mm256_add_epi32(cell_out, cell_right);//if
+      __m256i last_tile_case = _mm256_mask_add_epi32(cell_out, 0x3F, cell_out, cell_right);//else
+
+      cell_out = _mm256_mask_blend_epi32(mask_last, regular, last_tile_case);
 
       _mm256_storeu_si256((__m256i *)&table(out, i, j), cell_out);
 
@@ -134,7 +130,7 @@ int ssandPile_do_tile_avx_256(int x, int y, int width, int height)
 
       //AVX512
       __mmask8 mask = _mm256_cmpneq_epu32_mask(cell_in, cell_out);// cell_in != cell_out : 0 modif -> 00000000 (avx512)
-      diff = (int)mask;//__mmask8 = uint_8
+      diff |= mask;//__mmask8 = uint_8
       //diff = _popcnt32(mask);//compte les bits à 1 correspondant à une modif dans une des 8 cellules comparées. popcnt pas nécessaire au fonctionement ajd mais plus cohérent      
     }
 
@@ -147,6 +143,7 @@ int ssandPile_do_tile_avx_spirals(int x, int y, int width, int height)
     int diff = 0;
     const __m512i THREE_VEC = _mm512_set1_epi32(3);
     const __m512i ZERO_VEC = _mm512_set1_epi8(0);
+    const __m512i LAST_VEC_J = _mm512_set1_epi32(DIM - AVX512_VEC_SIZE_FLOAT);
 
     int j = x;
 
@@ -168,14 +165,13 @@ int ssandPile_do_tile_avx_spirals(int x, int y, int width, int height)
             cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_bottom, 2));
             cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_left, 2));
 
-            if(j != DIM - AVX512_VEC_SIZE_FLOAT)
-            {
-              cell_out = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_right, 2));            
-            }
-            else
-            {
-              cell_out = _mm512_mask_add_epi32(cell_out, 0x3FFF, cell_out, _mm512_srli_epi32(cell_right, 2));
-            }
+            const __m512i J_VEC = _mm512_set1_epi32(j);
+            __mmask16 mask_last = _mm512_cmpeq_epu32_mask(J_VEC, LAST_VEC_J);// = if(j != DIM - AVX512_VEC_SIZE_FLOAT) :
+
+            __m512i regular = _mm512_add_epi32(cell_out, _mm512_srli_epi32(cell_right, 2));//if
+            __m512i last_tile_case = _mm512_mask_add_epi32(cell_out, 0x3FFF, cell_out, _mm512_srli_epi32(cell_right, 2));//else
+
+            cell_out = _mm512_mask_blend_epi32(mask_last, regular, last_tile_case);
             
 
             // Stockage du résultat
@@ -183,16 +179,9 @@ int ssandPile_do_tile_avx_spirals(int x, int y, int width, int height)
 
             // Comparaison de cell_in et cell_out pour détecter les modifications
             __mmask16 mask = _mm512_cmpneq_epu32_mask(cell_in, cell_out);
-            if(mask != 0)
+            if(mask != 0)//TODO:!ktestz
             {
-              //const int K = AVX512_VEC_SIZE_FLOAT - 1;
-
-              // for (int k = 0; k < AVX512_VEC_SIZE_FLOAT; k += 1) 
-              //   {
-              //     #pragma omp atomic
-              //     is_steady(out, y, x + k) &= false;
-              //   }
-              //is_steady(out, y, x) &= false;
+              
               is_steady(out, y, x + AVX512_VEC_SIZE_FLOAT) &= false;
               //_mm512_storeu_epi8((__m512i *)&is_steady(out, y, x), ZERO_VEC);
               
@@ -295,11 +284,15 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
     return asandPile_do_tile_opt1(x, y, width, height);
   }
 
-  int diff = 0;
+  unsigned diff = 0;
   const __m512i THREE_VEC = _mm512_set1_epi32(3);
   const __m512i FOUR_VEC = _mm512_set1_epi32(4);
   const __m512i ZERO_VEC = _mm512_set1_epi32(0);
+  TYPE Dk[16] = { 0 }; 
 
+  TYPE* ptr = atable_cell(TABLE, y - 1, x);
+
+  #pragma omp simd collapse(2) reduction(|:diff) safelen(AVX512_VEC_SIZE_FLOAT*5) private(Dk) aligned(ptr:32*5)
   for (int i = y; i < y + height; i++){
     for (int j = x; j < x + width; j += AVX512_VEC_SIZE_FLOAT) 
     {
@@ -307,8 +300,8 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
       __m512i cells = _mm512_loadu_si512((__m512i *)&atable(i, j));
       __m512i last_cells = cells;
 
-      __mmask16 mask_leq = _mm512_cmpge_epu32_mask(THREE_VEC, cells);//cell >= 4
-      if (mask_leq == 1) continue;
+      // __mmask16 mask_leq = _mm512_cmpge_epu32_mask(THREE_VEC, cells);//cell >= 4
+      // if (mask_leq == 1) continue;
     
       __m512i cells_top = _mm512_loadu_si512 ((__m256i *)&atable(i + 1, j));    
       __m512i cells_bottom = _mm512_loadu_si512((__m256i *)&atable(i - 1, j)); 
@@ -325,12 +318,13 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
       cells_top = _mm512_add_epi32(cells_top, D);
       cells_bottom = _mm512_add_epi32(cells_bottom, D);
 
-      TYPE Dk[16] = { 0 }; 
       _mm512_storeu_epi32(&Dk, D);
 
       //Tj-1,i += D[0]:
+      //#pragma omp atomic
       atable(i, j - 1) += Dk[0];//_mm512_cvtsi512_si32(D);
       //Tj+1+k,i += D[k] :
+      //#pragma omp atomic
       atable(i, j + AVX512_VEC_SIZE_FLOAT) += Dk[AVX512_VEC_SIZE_FLOAT - 1];//if(x == DIM - AVX512_VEC_SIZE_FLOAT)?
 
       _mm512_storeu_si512((__m512i *)&atable(i - 1, j), cells_bottom);
@@ -338,8 +332,8 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
       _mm512_storeu_si512((__m512i *)&atable(i + 1, j), cells_top);
 
       __mmask16 mask = _mm512_cmpneq_epu32_mask(cells, last_cells);
-      diff = mask;
-        
+      #pragma omp atomic
+      diff |= mask;
     }
   }
 
@@ -357,7 +351,7 @@ int asandPile_do_tile_avx_256(int x, int y, int width, int height)
     return asandPile_do_tile_opt1(x, y, width, height);
   }
 
-  int diff = 0;
+  unsigned diff = 0;
   const __m256i THREE_VEC = _mm256_set1_epi32(3);
   const __m256i FOUR_VEC = _mm256_set1_epi32(4);
   const __m256i ZERO_VEC = _mm256_set1_epi32(0);
@@ -371,8 +365,8 @@ int asandPile_do_tile_avx_256(int x, int y, int width, int height)
       cell = _mm256_loadu_si256 ((__m256i *)&atable(i, j));//Tj,i
       last_cell = cell;
 
-      __mmask16 mask_leq = _mm256_cmpge_epu32_mask(THREE_VEC, cell);//cell >= 4
-      if (mask_leq == 1) continue;
+      // __mmask16 mask_leq = _mm256_cmpge_epu32_mask(THREE_VEC, cell);//cell >= 4
+      // if (mask_leq == 1) continue;
 
       cell_bottom = _mm256_loadu_si256((__m256i *)&atable(i - 1, j)); // Tj-1,i
       cell_top = _mm256_loadu_si256((__m256i *)&atable(i + 1, j));    // Tj+1,i
