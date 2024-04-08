@@ -319,33 +319,33 @@ int asandPile_do_tile_avx(int x, int y, int width, int height)
       cells_top = _mm512_add_epi32(cells_top, D);
       cells_bottom = _mm512_add_epi32(cells_bottom, D);
 
-      __m512i cells_left = _mm512_loadu_si512((__m512i *)&atable(i, j - 1));
-      __m512i cells_right = _mm512_loadu_si512((__m512i *)&atable(i, j + 1));
+      //__m512i cells_left = _mm512_loadu_si512((__m512i *)&atable(i, j - 1));
+      //__m512i cells_right = _mm512_loadu_si512((__m512i *)&atable(i, j + 1));
 
 
-      //TYPE Dk[16] = { 0 }; 
-      //_mm512_storeu_epi32(&Dk, D);
+      TYPE Dk[16] = { 0 }; 
+      _mm512_storeu_epi32(&Dk, D);
 
       //Tj-1,i += D[0]:
       //#pragma omp atomic
-      //atable(i, j - 1) += Dk[0];//_mm512_cvtsi512_si32(D);
+      atable(i, j - 1) += Dk[0];//_mm512_cvtsi512_si32(D);
       //__m512i Dk0_VEC = _mm512_set1_epi32(Dk[0]);
-      cells_left = _mm512_mask_add_epi32(cells_left, 0x0001, cells_left, D);
-      _mm512_storeu_si512((__m512i *)&atable(i, j - 1), cells_left);
+      //cells_left = _mm512_mask_add_epi32(cells_left, 0x0001, cells_left, D);
+      //_mm512_storeu_si512((__m512i *)&atable(i, j - 1), cells_left);
 
       //Tj+1+k,i += D[k] :
       //#pragma omp atomic
-      //atable(i, j + AVX512_VEC_SIZE_FLOAT) += Dk[AVX512_VEC_SIZE_FLOAT - 1];//if(x == DIM - AVX512_VEC_SIZE_FLOAT)?
+      atable(i, j + AVX512_VEC_SIZE_FLOAT) += Dk[AVX512_VEC_SIZE_FLOAT - 1];//if(x == DIM - AVX512_VEC_SIZE_FLOAT)?
       //__m512i Dkk_VEC = _mm512_set1_epi32(Dk[AVX512_VEC_SIZE_FLOAT - 1]);
-      cells_right = _mm512_mask_add_epi32(cells_right, 0x8000, cells_right, D);
-      _mm512_storeu_si512((__m512i *)&atable(i, j + 1), cells_right);
+      //cells_right = _mm512_mask_add_epi32(cells_right, 0x8000, cells_right, D);
+      //_mm512_storeu_si512((__m512i *)&atable(i, j + 1), cells_right);
 
       _mm512_storeu_si512((__m512i *)&atable(i - 1, j), cells_bottom);
       _mm512_storeu_si512((__m512i *)&atable(i, j), cells);
       _mm512_storeu_si512((__m512i *)&atable(i + 1, j), cells_top);
 
       __mmask16 mask = _mm512_cmpneq_epu32_mask(cells, last_cells);
-      #pragma omp atomic
+      //#pragma omp atomic
       diff |= mask;
     }
   }
