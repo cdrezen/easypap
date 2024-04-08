@@ -1,1 +1,1 @@
-OMP_NUM_THREADS=1 OMP_SCHEDULE=static ./run -k asandPile -s 8192  -a alea CHAINE_A_SUPPRIMER 
+OMP_NUM_THREADS=32 OMP_SCHEDULE=static ./run -k ssandPile -s 8192 -v lazy -wt avx -ts 16 -a alea -n
