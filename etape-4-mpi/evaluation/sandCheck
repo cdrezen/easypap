@@ -10,8 +10,8 @@ echoColor () {
     echo -e $p : $* $NOCOLOR
 }
 
-refdir="etape-3/evaluation/"
-configPath="etape-3/evaluation/"
+refdir="etape-4-mpi/evaluation/"
+configPath="etape-4-mpi/evaluation/"
 perfFile=../perf.csv
 
 p=projet
@@ -46,4 +46,4 @@ p=projet
 	rm -f $sha
 done
 
-[ -f etape-3/rapport.pdf ] || echoColor $RED "le rapport est absent"
+[ -f etape-4-mpi/rapport.pdf ] || echoColor $RED "le rapport est absent"
