@@ -1,6 +1,8 @@
 #ifndef SANDPILE
 #define SANDPILE
 
+#define ENABLE_OPENCL//à supprimer (bug vscode)
+
 #include "easypap.h"
 
 #include <omp.h>
@@ -90,13 +92,6 @@ int ssandPile_do_tile_default(int x, int y, int width, int height);
 unsigned ssandPile_compute_seq(unsigned nb_iter);
 
 unsigned ssandPile_compute_tiled(unsigned nb_iter);
-
-#ifdef ENABLE_OPENCL
-
-// Only called when --dump or --thumbnails is used
-void ssandPile_refresh_img_ocl();
-
-#endif
 
 //////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
