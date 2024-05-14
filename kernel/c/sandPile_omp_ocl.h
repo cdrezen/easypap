@@ -43,15 +43,18 @@ void ssandPile_refresh_img_ocl_omp()
 void ssandPile_init_ocl_omp (void)
 {
   ssandPile_init();
-  const int size = DIM * DIM * sizeof (unsigned);
 
   // cpu_tiles_x = CPU_PROPORTION * NB_TILES_X;
   // border_left = (cpu_tiles_x / 2) * TILE_W;
   // border_right = DIM - (cpu_tiles_x / 2) * TILE_W;
   
+  // cpu_tiles_y = CPU_PROPORTION * NB_TILES_Y;
+  // border_top = (cpu_tiles_y / 2) * TILE_H;
+  // border_bottom = DIM - (cpu_tiles_y / 2) * TILE_H;
+
   cpu_tiles_y = CPU_PROPORTION * NB_TILES_Y;
-  border_top = (cpu_tiles_y / 2) * TILE_H;
-  border_bottom = DIM - (cpu_tiles_y / 2) * TILE_H;
+  border_top = cpu_tiles_y * TILE_H;
+  
 
   printf("init t=%d b=%d nb/2=%f\n", border_top, border_bottom, (cpu_tiles_y / 2));
 
@@ -83,20 +86,17 @@ void do_cpu_pre(){}
 void do_cpu_post()
 {
     cl_int err;
-    err = clEnqueueReadBuffer(queue, in_buff, CL_TRUE, 0, sizeof(unsigned) * DIM * DIM, TABLE, 0, NULL, NULL);
+    err = clEnqueueReadBuffer(queue, in_buff, CL_TRUE, 0, sizeof(unsigned) * (border_top) * DIM, &table(in, 0, 0), 0, NULL, NULL);
     check(err, "Failed to read buffer from GPU");
-
-    err = clEnqueueReadBuffer(queue, out_buff, CL_TRUE, 0, sizeof(unsigned) * DIM * DIM, table_cell(TABLE, out, 0, 0), 0, NULL, NULL);
-    check(err, "Failed to read buffer from GPU");
+    // err = clEnqueueReadBuffer(queue, in_buff, CL_TRUE, border_top, sizeof(unsigned) * (DIM - border_top) * DIM, table_cell(TABLE, in, border_top, 0), 0, NULL, NULL);
+    // check(err, "Failed to read buffer from GPU");
 
     int change = 0;
 
-    #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
-    for(int y = 0; y < DIM; y+=TILE_H) {
+      #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    for(int y = 0; y < border_top; y+=TILE_H) {
       for(int x = 0; x < DIM; x+=TILE_W)
       {
-        //if(x > border_left && x < border_right) continue;
-        if(y > border_top && y < border_bottom) continue;
         //if(is_steady(in, y, x) && is_steady(out, y, x)) continue;
 
         int diff = do_tile(x + (x == 0), y + (y == 0),
@@ -107,9 +107,25 @@ void do_cpu_post()
       }
     }
 
+    // #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
+    // for(int y = 0; y < DIM; y+=TILE_H) {
+    //   for(int x = 0; x < DIM; x+=TILE_W)
+    //   {
+    //     //if(x > border_left && x < border_right) continue;
+    //     if(y > border_top && y < border_bottom) continue;
+    //     //if(is_steady(in, y, x) && is_steady(out, y, x)) continue;
+
+    //     int diff = do_tile(x + (x == 0), y + (y == 0),
+    //                  TILE_W - ((x + TILE_W == DIM) + (x == 0)),
+    //                  TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+
+    //     change |= diff;
+    //   }
+    // }
+
     //swap_tables();
 
-    err = clEnqueueWriteBuffer (queue,  out_buff, CL_TRUE, 0, sizeof(unsigned) * DIM * DIM, table_cell(TABLE, out, 0, 0), 0, NULL, NULL);
+    err = clEnqueueWriteBuffer (queue,  out_buff, CL_TRUE, 0, sizeof(unsigned) * (border_top) * DIM, &table(out, 0, 0), 0, NULL, NULL);
     check(err, "Failed to write buffer to GPU");
 
     // Swap buffers

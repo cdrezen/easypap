@@ -26,7 +26,7 @@ __kernel void ssandPile_ocl_omp(__global unsigned *in, __global unsigned *out, u
 
   //twin[pos] = in[pos];
 
-  if ((y > border_top && y < border_bottom) && (x != 0 && y != 0 && x != DIM-1 && y != DIM-1))
+  if ((y >= border_top) && (x != 0 && y != 0 && x != DIM-1 && y != DIM-1)) //&& y < border_bottom
   {
     out[pos] = in[pos] % 4
                       + in[pos + 1] / 4 
