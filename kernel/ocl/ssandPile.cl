@@ -18,7 +18,7 @@ __kernel void ssandPile_ocl(__global unsigned *in, __global unsigned *out)
   }
 }
 
-__kernel void ssandPile_ocl_twin(__global unsigned *in, __global unsigned *out,  __global unsigned *twin)
+__kernel void ssandPile_ocl_omp(__global unsigned *in, __global unsigned *out, unsigned border_top, unsigned border_bottom)
 {
   int x = get_global_id (0);
   int y = get_global_id (1);
@@ -26,14 +26,13 @@ __kernel void ssandPile_ocl_twin(__global unsigned *in, __global unsigned *out, 
 
   //twin[pos] = in[pos];
 
-  if (x != 0 && y != 0 && x != DIM-1 && y != DIM-1)  //pour ne pas calculer les 1ere ligne des bords de l'image
+  if ((y > border_top && y < border_bottom) && (x != 0 && y != 0 && x != DIM-1 && y != DIM-1))
   {
-    unsigned cell_out = in[pos] % 4
+    out[pos] = in[pos] % 4
                       + in[pos + 1] / 4 
                       + in[pos - 1] / 4
                       + in[pos + DIM] / 4
                       + in[pos - DIM] / 4;
-    out[pos] = cell_out;
   }
 }
 
