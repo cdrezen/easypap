@@ -1,5 +1,7 @@
 #include "kernel/ocl/common.cl"
 
+#define IMAGE 0
+#define BORDER 1
 
 __kernel void ssandPile_ocl(__global unsigned *in, __global unsigned *out)
 {
@@ -18,21 +20,23 @@ __kernel void ssandPile_ocl(__global unsigned *in, __global unsigned *out)
   }
 }
 
-__kernel void ssandPile_ocl_omp(__global unsigned *in, __global unsigned *out, unsigned border_top, unsigned border_bottom)
+__kernel void ssandPile_ocl_omp(__global unsigned *in, __global unsigned *out, unsigned border_top, __global bool *change)
 {
   int x = get_global_id (0);
   int y = get_global_id (1);
   int pos = y * DIM + x;
 
-  //twin[pos] = in[pos];
-
-  if ((y >= border_top) && (x != 0 && y != 0 && x != DIM-1 && y != DIM-1)) //&& y < border_bottom
+  if ((y >= border_top) && (y != 0 && y != DIM-1 && x != 0 && x != DIM-1)) //&& y < border_bottom
   {
     out[pos] = in[pos] % 4
                       + in[pos + 1] / 4 
                       + in[pos - 1] / 4
                       + in[pos + DIM] / 4
                       + in[pos - DIM] / 4;
+
+    //change[IMAGE] |= (out[pos] != in[pos]);// atomic_or(&change[IMAGE], out[pos] != in[pos]);
+
+    //if(y == border_top) change[BORDER] |= (out[pos] != in[pos]);//atomic_or(&change[BORDER], out[pos] != in[pos]);//;
   }
 }
 

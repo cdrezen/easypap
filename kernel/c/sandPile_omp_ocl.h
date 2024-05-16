@@ -1,13 +1,11 @@
 #include "sandPile.h"
-#include <fcntl.h>
-
 
 #ifdef ENABLE_OPENCL
 
 #define in_buff cur_buffer
 #define out_buff next_buffer
 
-const double CPU_GPU_RATIO = 0.5;
+double CPU_GPU_RATIO = 0.5;
 
 double cpu_tiles_y = 0;
 int border_top = 0;
@@ -15,17 +13,19 @@ int border_bottom = 0;
 // double cpu_tiles_x = 0;
 // int border_left = 0;
 // int border_right = 0;
+cl_mem gpu_change_buff;
+cl_mem zero_buff;
+#define IMAGE 0
+#define BORDER 1
+bool* GPU_CHANGE;
+
+const unsigned int NB_LINES = 1;
 
 
 // Only called when --dump or --thumbnails is used
 void ssandPile_refresh_img_ocl()
 {
-  printf("refresh\n");
-
-  cl_int err;
-
-  err = clEnqueueReadBuffer(queue, in_buff, CL_TRUE, border_top * DIM * sizeof(unsigned),
-                          sizeof(unsigned) * border_top * DIM, &table(in, border_top, 0), 0, NULL, NULL);
+  cl_int err = clEnqueueReadBuffer (queue, cur_buffer, CL_TRUE, 0, sizeof (unsigned) * DIM * DIM, TABLE, 0, NULL, NULL);
   check(err, "Failed to read buffer from GPU");
 
   ssandPile_refresh_img();
@@ -33,10 +33,28 @@ void ssandPile_refresh_img_ocl()
 
 void ssandPile_refresh_img_ocl_omp()
 {
-  ssandPile_refresh_img_ocl();
+  printf("refresh\n");
+
+  cl_int err = clEnqueueReadBuffer(queue, in_buff, CL_TRUE, border_top * DIM * sizeof(unsigned),
+                          sizeof(unsigned) * abs(DIM - border_top) * DIM, &table(in, border_top, 0), 0, NULL, NULL);
+
+  check(err, "Failed to read buffer from GPU");
+
+  ssandPile_refresh_img();
 }
 
-// ./run -k ssandPile -g -v ocl_omp -a data/misc/mask.bin -i 69
+// ./run -k ssandPile -g -v ocl_omp -a 0.25
+
+void ssandPile_config_ocl_omp (char *param)
+{
+  if(!param) return;
+
+  char* endptr;  
+  CPU_GPU_RATIO = strtod(param, &endptr); 
+  
+  if (param == endptr) exit_with_error("Failed to convert arg\n");
+}
+
 
 void ssandPile_init_ocl_omp (void)
 {
@@ -53,17 +71,33 @@ void ssandPile_init_ocl_omp (void)
   cpu_tiles_y = CPU_GPU_RATIO * NB_TILES_Y;
   border_top = cpu_tiles_y * TILE_H;
   
-  printf("init t=%d b=%d nb/2=%f\n", border_top, border_bottom, (cpu_tiles_y / 2));
+  printf("init border_top=%d cpu_tiles_y=%f\n", border_top, cpu_tiles_y);
+
+  GPU_CHANGE = malloc(2 * sizeof(bool));
+
+  gpu_change_buff = clCreateBuffer (context, CL_MEM_READ_WRITE, sizeof(bool) * 2, NULL, NULL);//CL_MEM_HOST_READ_ONLY
+  if (!gpu_change_buff)
+    exit_with_error ("Failed to allocate bool buffer");
+
+  zero_buff = gpu_change_buff;
+}
+
+void ssandPile_finalize_ocl_omp (void)
+{
+  ssandPile_finalize();
+  free(GPU_CHANGE);
 }
 
 //dbg
 int ssandPile_do_tile_dbg(int x, int y, int width, int height)
 {
+  int diff = 0;
   for (int i = y; i < y + height; i++) {
     for (int j = x; j < x + width; j++)
     {
         //table(in, i, j) = (unsigned int)rand() % 4;
-        table(in, i, j) = 3;
+        table(out, i, j) = 1;
+        //if(table(in, i, j) != table(out, i, j)) diff = 1;
     }
   }
 
@@ -72,39 +106,50 @@ int ssandPile_do_tile_dbg(int x, int y, int width, int height)
 
 void do_cpu_pre(){}
 
-void do_cpu_post()
+int do_cpu_post(const size_t offset_gpu, const size_t offset_cpu, const size_t transfer_sz)
 {
-    const unsigned int NB_LINES = 1;
-
-    //read gpu line at border
     cl_int err = 0;
-    const size_t offset_gpu = border_top * DIM * sizeof(unsigned);
-    const size_t size = sizeof(unsigned) * (NB_LINES) * DIM;
-    const TYPE* dest = &table(in, border_top, 0);
-    err |= clEnqueueReadBuffer(queue, in_buff, CL_TRUE, offset_gpu, size, dest, 0, NULL, NULL);
-    check(err, "Failed to read buffer from GPU");
+
+    //err = clEnqueueReadBuffer (queue, gpu_change_buff, CL_TRUE, 0, sizeof(bool) * 2, GPU_CHANGE, 0, NULL, NULL);
+    //check(err, "Failed to read bool from GPU");
+
+    //if(GPU_CHANGE[BORDER])
+    {
+      //read gpu line at border
+      err = clEnqueueReadBuffer(queue, in_buff, CL_TRUE, offset_gpu, transfer_sz, &table(in, border_top, 0), 0, NULL, NULL);
+      check(err, "Failed to read buffer from GPU");
+    }
+    // else{
+    //   printf("no border change\n");
+    //   memcpy(&table(in, border_top, 0), &table(out, border_top, 0), size);
+    // }
 
     int change = 0;
+    bool cpu_border_changed = false;
+
 
       #pragma omp parallel for collapse(2) schedule(runtime) reduction(|:change)
     for(int y = 0; y < border_top; y+=TILE_H) {
       for(int x = 0; x < DIM; x+=TILE_W)
       {
-        //if(is_steady(in, y, x) && is_steady(out, y, x)) continue;
-
         int diff = do_tile(x + (x == 0), y + (y == 0),
                      TILE_W - ((x + TILE_W == DIM) + (x == 0)),
                      TILE_H - ((y + TILE_H == DIM) + (y == 0)));
+
+        if (y == border_top - TILE_H){
+            cpu_border_changed |= diff;
+        }
 
         change |= diff;
       }
     }
 
-    //write cpu line at border
-    const size_t offset_cpu = (border_top - NB_LINES) * DIM * sizeof(unsigned);
-    const TYPE* source = &table(out, border_top - NB_LINES, 0);
-    err |= clEnqueueWriteBuffer (queue,  out_buff, CL_TRUE, offset_cpu, size, source, 0, NULL, NULL);
-    check(err, "Failed to write buffer to GPU");
+    if(cpu_border_changed)
+    {
+    //write cpu line at border to gpu
+      err = clEnqueueWriteBuffer (queue,  out_buff, CL_TRUE, offset_cpu, transfer_sz, &table(out, border_top - NB_LINES, 0), 0, NULL, NULL);
+      check(err, "Failed to write buffer to GPU");
+    }
 
     // Swap buffers
     {
@@ -112,7 +157,10 @@ void do_cpu_post()
       in_buff = out_buff;
       out_buff = tmp;
       swap_tables();
+      gpu_change_buff = zero_buff;
     }
+
+    return change;
 }
 
 
@@ -121,6 +169,10 @@ unsigned ssandPile_invoke_ocl_omp (unsigned nb_iter)
   size_t global[2] = {GPU_SIZE_X, GPU_SIZE_Y}; // global domain size for our calculation
   size_t local[2]  = {TILE_W, TILE_H}; // local domain size for our calculation
   cl_int err;
+
+  const size_t offset_gpu = border_top * DIM * sizeof(unsigned);
+  const size_t offset_cpu = (border_top - NB_LINES) * DIM * sizeof(unsigned);
+  const size_t transfer_sz = sizeof (unsigned) * (NB_LINES) * DIM;
 
 
   uint64_t clock = monitoring_start_tile(easypap_gpu_lane (TASK_TYPE_COMPUTE));
@@ -137,14 +189,27 @@ unsigned ssandPile_invoke_ocl_omp (unsigned nb_iter)
     err |= clSetKernelArg (compute_kernel, 0, sizeof (cl_mem), &in_buff);
     err |= clSetKernelArg (compute_kernel, 1, sizeof (cl_mem), &out_buff);
     err |= clSetKernelArg (compute_kernel, 2, sizeof (unsigned), &border_top);
-    err |= clSetKernelArg (compute_kernel, 3, sizeof (unsigned), &border_bottom);
+    err |= clSetKernelArg (compute_kernel, 3, sizeof (cl_mem), &gpu_change_buff);
+    check (err, "Failed to set kernel arguments");
 
-    err = clEnqueueNDRangeKernel (queue, compute_kernel, 2, NULL, global, local,
-                                   0, NULL, NULL);
-
+    err = clEnqueueNDRangeKernel (queue, compute_kernel, 2, NULL, global, local, 0, NULL, NULL);
     check (err, "Failed to execute kernel");
 
-    do_cpu_post();
+    int change = do_cpu_post(offset_gpu, offset_cpu, transfer_sz);//, read_dest, write_source);
+    if(change == 0) 
+    {
+      //if(!GPU_CHANGE[IMAGE])
+      {
+        clFinish (queue);
+        monitoring_end_tile (clock, 0, 0, DIM, DIM, easypap_gpu_lane (TASK_TYPE_COMPUTE));
+        return it;
+      }
+      //else printf("change gpu\n");
+    } 
+
+    // bool b = false;
+    // err |= clEnqueueFillBuffer(queue, gpu_change_buff, &b, sizeof(bool), 0, sizeof(bool) * 2, 0, NULL, NULL);
+    // check(err, "Failed to fill buffer in GPU");
   }
 
   clFinish (queue);
@@ -155,7 +220,7 @@ unsigned ssandPile_invoke_ocl_omp (unsigned nb_iter)
   {
     err |= clEnqueueWriteBuffer(queue, in_buff, CL_TRUE, 0,
                           sizeof(unsigned) * border_top * DIM, &table(in, 0, 0), 0, NULL, NULL);
-    check(err, "Failed to write buffer from GPU");
+    check(err, "Failed to write buffer to GPU");
   }
 
   return 0;
