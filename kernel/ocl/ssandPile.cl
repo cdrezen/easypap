@@ -20,7 +20,7 @@ __kernel void ssandPile_ocl(__global unsigned *in, __global unsigned *out)
   }
 }
 
-__kernel void ssandPile_ocl_omp(__global unsigned *in, __global unsigned *out, unsigned border_top, __global bool *change)
+__kernel void ssandPile_ocl_omp(__global unsigned *in, __global unsigned *out, unsigned border_top)//, __global bool *change)
 {
   int x = get_global_id (0);
   int y = get_global_id (1);

@@ -17,7 +17,4 @@ Most of the parameters can be specified as command line arguments, when running 
 
 Please read the [Getting Started Guide](https://gforgeron.gitlab.io/easypap/doc/Getting_Started.pdf) before you start!
 
-TODO:
-ne pas tout relire/ecrire
-change-table gpu?
 
