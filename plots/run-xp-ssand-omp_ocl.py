@@ -28,7 +28,7 @@ execute("./run ", ompICV, easypapOptions, nbruns, verbose=False, easyPath=".")
 #del easypapOptions["-ts"]
 easypapOptions["--label"] = ["fullgpu"]
 easypapOptions["-v"] = ["ocl"]
-del easypapOptions["-a"]
+#del easypapOptions["-a"]
 
 execute("./run ", ompICV, easypapOptions, nbruns, verbose=False, easyPath=".")
 
@@ -45,6 +45,7 @@ easypapOptions["--label"] = ["seq"]
 del easypapOptions["-v"]
 
 ompICV = {
+    "OMP_SCHEDULE": ["static"],
     "OMP_NUM_THREADS": [1]
 }
 
