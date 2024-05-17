@@ -12,6 +12,7 @@ int _border = 0;
 
 bool solo = false;
 unsigned _it = 0;
+char* arg = NULL;
 
 // Only called when --dump or --thumbnails is used
 void ssandPile_refresh_img_ocl()
@@ -37,6 +38,7 @@ void ssandPile_refresh_img_ocl_omp()
 void ssandPile_refresh_img_ocl_ompp() { ssandPile_refresh_img_ocl_omp(); }
 
 // ./run -k ssandPile -g -v ocl_omp -a 0.25
+// ./run -k ssandPile -s 2048 -a 0.5spirals -g -v ocl_omp -wt opt -th 1 -tw 512
 
 void ssandPile_config_ocl_omp (char *param)
 {
@@ -45,10 +47,22 @@ void ssandPile_config_ocl_omp (char *param)
   char* endptr;  
   cpu_percent = strtod(param, &endptr); 
   
-  if (param == endptr) exit_with_error("Failed to convert arg\n");
+  if (param == endptr) printf("Failed to convert double.\n");
+  if (strlen(endptr)){
+    arg = endptr;
+  }
 }
 
 void ssandPile_config_ocl_ompp (char *param) { ssandPile_config_ocl_omp(param); }
+
+void ssandPile_draw_ocl_omp (char *param)
+{
+  if(arg) 
+  {
+    printf("%s\n", arg);
+    ssandPile_draw(arg);
+  }
+}
 
 void ssandPile_init_ocl_omp (void)
 {
