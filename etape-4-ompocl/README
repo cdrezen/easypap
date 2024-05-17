@@ -1,3 +1,9 @@
+
+### 2 rapports
+
+[branche gpu_omp_odtarrieu](https://gitlab.emi.u-bordeaux.fr/pap-2024/binones/projet-07/-/blob/gpu_omp_odtarrieu/etape-4-ompocl)
+[branche gpu_omp_cdrezen](https://gitlab.emi.u-bordeaux.fr/pap-2024/binones/projet-07/-/blob/gpu_omp_cdrezen/etape-4-ompocl/)
+
 Modifiez les fichiers etape-4-ompocl/evaluation/{512,1024,2048,4096, 8192}  pour y placer les paramètres optimaux (nombre de threads, variante, géométrie des tuiles) à utiliser pour la taille indiquées par le nom du fichier.
 
 Cas à considérer :
