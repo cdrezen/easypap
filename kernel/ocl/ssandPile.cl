@@ -40,6 +40,11 @@ __kernel void ssandPile_ocl_omp(__global unsigned *in, __global unsigned *out, u
   }
 }
 
+__kernel void ssandPile_ocl_ompp(__global unsigned *in, __global unsigned *out, unsigned border_top)//, __global bool *change)
+{
+  ssandPile_ocl_omp(in, out, border_top);
+}
+
 
 // DO NOT MODIFY: this kernel updates the OpenGL texture buffer
 // This is a ssandPile-specific version (generic version is defined in common.cl)
