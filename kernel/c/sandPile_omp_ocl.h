@@ -70,22 +70,6 @@ void ssandPile_finalize_ocl_omp (void)
 
 void ssandPile_finalize_ocl_ompp (void) { ssandPile_finalize_ocl_omp (); }
 
-//dbg
-int ssandPile_do_tile_dbg(int x, int y, int width, int height)
-{
-  int diff = 0;
-  for (int i = y; i < y + height; i++) {
-    for (int j = x; j < x + width; j++)
-    {
-        //table(in, i, j) = (unsigned int)rand() % 4;
-        table(out, i, j) = 1;
-        //if(table(in, i, j) != table(out, i, j)) diff = 1;
-    }
-  }
-
-  return 1;
-}
-
 void do_cpu_pre(){}
 
 struct cpu_result
@@ -94,15 +78,13 @@ struct cpu_result
   unsigned nb_copied_lines;
 };
 
-int a = 0;
-
 struct cpu_result do_cpu_post(const unsigned border, const size_t read_offset, const TYPE* read_ptr, const size_t read_sz, const size_t write_offset, const unsigned write_y, const size_t write_sz)
 {
     unsigned nb_copied_lines = 0;
 
     if(!solo)//&& gpu_change[BORDER]
     {
-      //read gpu line(s) at border
+      //read gpu line at border
       cl_int err = clEnqueueReadBuffer(queue, in_buff, CL_TRUE, read_offset, read_sz, read_ptr, 0, NULL, NULL);
       check(err, "Failed to read buffer from GPU");
     }
@@ -142,7 +124,7 @@ struct cpu_result do_cpu_post(const unsigned border, const size_t read_offset, c
       out_buff = tmp;
       swap_tables();
       solo = !solo;
-      //solo = (_it % NB_LINES);
+      //solo = (_it % NB_LINES); 
     }
 
     return (struct cpu_result){ change, nb_copied_lines };
@@ -159,8 +141,7 @@ unsigned ssandPile_invoke_ocl_omp (unsigned nb_iter)
   const TYPE* read_ptr = &table(in, _border, 0);
   const size_t read_sz = sizeof (unsigned) * (NB_LINES) * DIM;
 
-  const unsigned write_y = (_border - 1);// l'adresse change au swap
-  //const TYPE* write_ptr = &table(out, write_y, 0);//border - NB_LINES
+  const unsigned write_y = (_border - 1);//l'adresse change au swap
   const size_t write_offset = write_y * DIM * sizeof(unsigned);
   const size_t write_sz = sizeof (unsigned) * (NB_LINES) * DIM;
 
@@ -179,7 +160,6 @@ unsigned ssandPile_invoke_ocl_omp (unsigned nb_iter)
     err |= clSetKernelArg (compute_kernel, 0, sizeof (cl_mem), &in_buff);
     err |= clSetKernelArg (compute_kernel, 1, sizeof (cl_mem), &out_buff);
     err |= clSetKernelArg (compute_kernel, 2, sizeof (unsigned), &current_border);
-    //err |= clSetKernelArg (compute_kernel, 3, sizeof (cl_mem), &gpu_change_buff);
     check (err, "Failed to set kernel arguments");
 
     err = clEnqueueNDRangeKernel (queue, compute_kernel, 2, NULL, global, local, 0, NULL, NULL);
@@ -282,7 +262,7 @@ unsigned ssandPile_invoke_ocl_ompp (unsigned nb_iter)
     const TYPE* read_ptr = &table(in, _border, 0);
     const size_t read_sz = sizeof (unsigned) * (NB_LINES) * DIM;
 
-    const unsigned write_y = (_border - 1);// l'adresse change au swap
+    const unsigned write_y = (_border - 1);//
     const size_t write_offset = write_y * DIM * sizeof(unsigned);
     const size_t write_sz = sizeof (unsigned) * (NB_LINES) * DIM;
 
@@ -295,7 +275,7 @@ unsigned ssandPile_invoke_ocl_ompp (unsigned nb_iter)
       if(change == 0) break;
     }
 
-    
+
     uint64_t clock = monitoring_start_tile(easypap_gpu_lane (TASK_TYPE_COMPUTE));
 
     #pragma omp single nowait
