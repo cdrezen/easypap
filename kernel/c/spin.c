@@ -3,6 +3,8 @@
 
 #include <math.h>
 #include <omp.h>
+#include <mpi.h>
+
 
 static void rotate (void);
 static unsigned compute_color (int i, int j);
@@ -133,3 +135,63 @@ static void rotate (void)
 {
   base_angle = fmodf (base_angle + (1.0 / 180.0) * M_PI, M_PI);
 }
+
+
+
+
+unsigned spin_compute_mpi(unsigned nb_iter)
+{
+    int rank, size;
+    int provided;
+    MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &provided);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    int row_count = DIM / size;
+    int row_start = rank * row_count;
+    int row_end = (rank + 1) * row_count;
+
+    unsigned* recv_top = (unsigned*)malloc(DIM * sizeof(unsigned));
+    unsigned* recv_bottom = (unsigned*)malloc(DIM * sizeof(unsigned));
+
+    for (unsigned it = 1; it <= nb_iter; it++)
+    {
+        #pragma omp for collapse(2)
+        for (int i = row_start; i < row_end; i++)
+        {
+            for (int j = 0; j < DIM; j++)
+            {
+                cur_img(i, j) = compute_color(i, j);
+            }
+        }
+
+        if (size > 1)
+        {
+            if (rank < size - 1)
+            {
+                MPI_Send(&cur_img(row_end - 1, 0), DIM, MPI_UNSIGNED, rank + 1, 0, MPI_COMM_WORLD);
+                MPI_Recv(recv_bottom, DIM, MPI_UNSIGNED, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+
+            if (rank > 0)
+            {
+                MPI_Send(&cur_img(row_start, 0), DIM, MPI_UNSIGNED, rank - 1, 0, MPI_COMM_WORLD);
+                MPI_Recv(recv_top, DIM, MPI_UNSIGNED, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+        }
+
+        if (rank == 0)
+        {
+            rotate();
+        }
+        MPI_Bcast(&base_angle, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    }
+
+    free(recv_top);
+    free(recv_bottom);
+
+    MPI_Finalize();
+
+    return 0;
+}
+
