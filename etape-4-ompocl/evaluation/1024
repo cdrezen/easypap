@@ -1,1 +1,1 @@
-OMP_NUM_THREADS=16 OMP_SCHEDULE=static ./run -k ssandPile -s 1024 -i 10000 -g -v ocl_omp -wt avx -th 1 -tw 512 -a 0.125 -n
+OMP_NUM_THREADS=12 OMP_SCHEDULE=static ./run -k ssandPile -s 1024 -i 10000 -g -v ocl_omp -wt avx -th 1 -tw 512 -a 0.125 -n
