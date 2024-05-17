@@ -46,4 +46,4 @@ p=projet
 	rm -f $sha
 done
 
-[ -f etape-4-opmpocl/rapport.pdf ] || echoColor $RED "le rapport est absent"
+[ -f etape-4-ompocl/rapport.pdf ] || echoColor $RED "le rapport est absent"
