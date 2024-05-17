@@ -62,6 +62,7 @@ void ssandPile_draw_ocl_omp (char *param)
     printf("%s\n", arg);
     ssandPile_draw(arg);
   }
+  else ssandPile_draw(NULL);
 }
 
 void ssandPile_init_ocl_omp (void)
